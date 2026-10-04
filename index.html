@@ -457,6 +457,8 @@ input[type=text], input[type=number], input[type=url], select, textarea { min-he
 .wf .f label { line-height: 1.25; }
 .pd-legend p { font-size: 9pt; color: #5A5446; }
 @media (max-width: 760px) { .pt { display: none; } .nx-go { margin-left: 8px; font-size: .72rem; padding: 2px 8px; } .sec-h .sn { padding: 6px 10px; font-size: .8rem; } }
+
+.model-note { margin: 8px 0 0 !important; font-weight: 700; color: var(--gold-text) !important; font-size: .93rem !important; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 </style>
 <style id="print-css" media="print">
@@ -960,7 +962,7 @@ function rules(extra) {
   return ['Rules',
     '- Use only the numbers in the client data. Do not invent, round up or add any figure.',
     '- Mark anything estimated with (est). A field marked "est": true is an estimate.',
-    '- If something is missing or null, write "unknown". Do not fill it in.'].concat(extra || []).join('\n');
+    '- If something is missing or null, write "unknown". Do not fill it in. If a figure is in ALLOWED NUMBERS, use it: never call it unknown.'].concat(extra || []).join('\n');
 }
 function ph(v, fallback) { return v && String(v).trim() ? String(v).trim() : fallback; }
 function bizName(st) { return ph(st.client.name, '[Client Name]'); }
@@ -1015,7 +1017,37 @@ function pretty(o) {
   return '{\n' + out.join(',\n') + '\n}';
 }
 function dataJson(st, res) { return pretty(dataObj(st, res)); }
-function dataText(st, res) { return INTRO + '\n\n' + dataJson(st, res); }
+function sumBack(a) { return a.reduce(function (t, r) { return t + (r.ready ? r.back : 0); }, 0); }
+function allowedNumbers(st, res) {
+  var cur = res.cur, m = res.matrix, o = ['ALLOWED NUMBERS (the only figures you may quote, already formatted)'];
+  function add(label, v) { o.push('- ' + label + ': ' + v); }
+  var c = st.client, l = st.leads;
+  if (nn(c.staff) !== null) add('Staff', nn(c.staff));
+  add('Workflows listed', res.rows.length);
+  if (res.hasData) {
+    add('Hours a week, all mapped work', hrsFmt(res.hrs));
+    add('Cost a year, all mapped work', money(res.yearly, cur));
+    add('Savings a year at 70%', money(res.back, cur));
+    add('Savings a year at 70% from Quick Wins only (Option A)', money(sumBack(m.win), cur));
+    add('Savings a year at 70% from Quick Wins plus Big Swings (Option B)', money(sumBack(m.win) + sumBack(m.swing), cur));
+    add('Savings a year at 70% from the full roadmap (Option C)', money(res.back, cur));
+  }
+  if (res.hasLeads) { add('Missed leads a month', nn(l.missed)); add('Close rate', nn(l.close) + '%'); add('Average sale', money(nn(l.avg), cur)); add('Lost leads a year', money(res.leadsYear, cur)); }
+  if (res.fee !== null) { add('Audit fee (' + res.tier + ')', money(res.fee, cur)); add('Three times the audit fee', money(res.fee * 3, cur)); }
+  res.ranked.forEach(function (r, i) {
+    var raw = rowOf(st, r.id), p = [];
+    if (r.ready) p.push(hrsFmt(r.hrs) + ' hours a week', money(r.rateUsed, cur) + ' an hour', money(r.yearly, cur) + ' a year', money(r.back, cur) + ' saved a year');
+    ['often', 'minutes', 'people'].forEach(function (k, j) { if (nn(raw[k]) !== null) p.push(nn(raw[k]) + [' times a week', ' minutes each', ' people'][j]); });
+    if (r.priority !== null) p.push('priority ' + r.priority + ' of 20');
+    o.push('- ' + (i + 1) + '. ' + r.name + ': ' + (p.length ? p.join(', ') : 'no numbers yet'));
+  });
+  o.push('Anything not on this list is unknown. Do not work out new totals.');
+  return o.join('\n');
+}
+var END_LINE = 'Use only numbers from ALLOWED NUMBERS. If you need any other number, write \'unknown\' instead. Do not ask me questions; finish the task and list what is unknown at the end.';
+function withEnd(f) { return function (st, res) { return f(st, res) + '\n\n' + END_LINE; }; }
+function dataBlock(st, res) { return dataJson(st, res) + '\n\n' + allowedNumbers(st, res); }
+function dataText(st, res) { return INTRO + '\n\n' + dataBlock(st, res); }
 
 function promptKickoff(st, res) {
   return [
@@ -1025,7 +1057,7 @@ function promptKickoff(st, res) {
     '',
     'Give me four parts, with these headings:',
     '1. Kickoff agenda (60 minutes): a table with the columns Minutes, Item, What I say, What I need from them. Cover their goals in their own words (use callNotes), scope, who we interview, tool and data access, the plan for Days 2 to 4 and Day 10, and what they must do this week.',
-    '2. Interview list: a table with the columns Order, Role, Why, Length, The one thing to learn. Include the person who does each workflow in the client data. Number of interviews by audit size: Focused 3 to 4, Standard 6 to 8, Deep 10 or more. Use tier.name.',
+    '2. Interview list: a table with the columns Order, Role, Why, The one thing to learn. Do not give interview lengths. Include the person who does each workflow in the client data. Number of interviews by audit size: Focused 3 to 4, Standard 6 to 8, Deep 10 or more. Use tier.name.',
     '3. Data and access to ask for: a bulleted list, one line each, saying what and why.',
     '4. Three questions to confirm their goals before we start.',
     '',
@@ -1043,7 +1075,7 @@ function promptQuestions(st, res) {
     rules(['- No jargon. No question that suggests the answer.']),
     '',
     'Give me three parts, with these headings:',
-    '1. Opening line: three or four sentences I can read aloud, word for word. Say why we are talking, that it takes about 30 minutes, that we are looking at the work and not at the person, and that rough numbers are fine.',
+    '1. Opening line: three or four sentences I can read aloud, word for word. Say why we are talking, that it will be short, that we are looking at the work and not at the person, and that rough numbers are fine.',
     '2. Questions: a table with the columns Number, Question, Follow-up if the answer is vague. Eight to twelve questions in plain words, easiest first. Build them around the four numbers: how often, how long each time, how many people, and what it costs (if they do not know, ask for the wage). Aim them at the workflows in the client data and add what happens when it goes wrong. Example follow-up: "It takes a while" gets "Roughly how long, each time?".',
     '3. Closing question: one question. If you could hand off one task tomorrow, which would it be?',
     '',
@@ -1091,7 +1123,7 @@ function promptRank(st, res) {
   return [
     USING + 'rank the opportunities for ' + bizName(st) + ' and plan the next 90 days.',
     '',
-    rules(['- Impact, Effort and AI Fit are scored 1 to 5. Give a one-line reason for every score, using only the data. Challenge my scores if the data does not support them.', '- Build prices are not in the data. Write "to be quoted" for any build price.']),
+    rules(['- Impact, Effort and AI Fit are scored 1 to 5. Give a one-line reason for every score, using only the data. Challenge my scores if the data does not support them.', '- Build prices are not in the data. Write "price to be set after scoping" for any build price.']),
     '',
     'Method',
     '- Priority = Impact x 2 + AI Fit + (6 minus Effort), maximum 20.',
@@ -1102,7 +1134,7 @@ function promptRank(st, res) {
     '1. Scores: a table with the columns Workflow, Impact, Effort, AI Fit, Priority, Box, Reason for the scores.',
     '2. Opportunity Matrix: the workflows in each box, with the AI Fit override applied.',
     '3. 90-day roadmap: a table with the columns Period (days 1 to 30, 31 to 60, 61 to 90), What happens, Result they should see.',
-    '4. Three build options, smallest to largest (Quick Wins; Quick Wins plus Big Swing; Full roadmap): a table with the columns Option, What is included, Timeline, Investment, Audit fee credit (take it from tier.auditFee), Yearly savings (from the data).',
+    '4. Three build options, smallest to largest (Quick Wins; Quick Wins plus Big Swing; Full roadmap): a table with the columns Option, What is included, Investment (write "price to be set after scoping"), Audit fee credit (take it from tier.auditFee), Yearly savings (copy the Option A, B or C line from ALLOWED NUMBERS). No timelines.',
     '',
     'Under 800 words apart from the tables.'
   ].join('\n');
@@ -1111,7 +1143,7 @@ function promptReport(st, res) {
   return [
     USING + 'write the AI Opportunity Audit report for ' + bizName(st) + '. Write it for the owner' + (tx(st.client.owner) ? ', ' + st.client.owner.trim() : '') + ', in plain English. It is the report the client keeps, so make it client-ready.',
     '',
-    rules(['- Anything marked (est) is an estimate from the owner\'s call. Keep the (est) label wherever you use it, and say once in section 10 that these are estimates.', '- Quote the owner\'s own words from callNotes and ownersWords where they help. Do not invent quotes.', '- Items under fixProcessFirst go in section 7, not in the recommendations.', '- Do not name tools or vendors unless they appear in the data.', '- Build prices are not in the data. Write "to be quoted" for any build price.']),
+    rules(['- Anything marked (est) is an estimate from the owner\'s call. Keep the (est) label wherever you use it, and say once in section 10 that these are estimates.', '- Quote the owner\'s own words from callNotes and ownersWords where they help. Do not invent quotes.', '- Items under fixProcessFirst go in section 7, not in the recommendations.', '- Do not name tools or vendors unless they appear in the data.', '- Build prices and timelines are not in the data. Write "price to be set after scoping" for any build price and leave timelines out.']),
     '',
     'Format: clear headings, short paragraphs, tables for the workflow costs and the roadmap. No invented numbers. Something the owner can read in ten minutes.',
     '',
@@ -1121,10 +1153,10 @@ function promptReport(st, res) {
     '3. Your goals: in the owner\'s own words from the call notes.',
     '4. AI readiness: the data has no readiness score, so say it still needs scoring. Do not invent percentages.',
     '5. How the work gets done today: a table with the columns Workflow, Who, Hours a week, Cost a year, Main pain.',
-    '6. Opportunities: the matrix, then a card for each of the top three to five. Each card: quadrant, the problem today, the numbers today (hours x rate x 48 weeks = cost a year), what we would build, expected impact (conservative), effort and timeline, risks, price range ("to be quoted").',
+    '6. Opportunities: the matrix, then a card for each of the top three to five. Each card: quadrant, the problem today, the numbers today (hours x rate x 48 weeks = cost a year), what we would build, expected impact (conservative), effort, risks, price ("price to be set after scoping").',
     '7. Not now, and why: the Not Now items and the Fix the process first items, with what would need to change.',
     '8. 90-day roadmap: a table with the columns Period, What happens, Result you should see. Use suggestedRoadmapOrder.',
-    '9. Build options: three options from smallest to largest, each showing the audit fee credit.',
+    '9. Build options: three options from smallest to largest, each showing the audit fee credit and its yearly savings from the Option A, B or C line in ALLOWED NUMBERS.',
     '10. How we calculated the numbers: the formulas in howCalculated and the note that these are estimates.',
     '11. Next steps: choose an option, proposal and agreement, kickoff.',
     '',
@@ -1138,7 +1170,7 @@ function promptReadout(st, res) {
     '',
     'Option for the proposal: ' + opt,
     '',
-    rules(['- Build prices are not in the data. Write "to be quoted" for any price.']),
+    rules(['- Build prices and timelines are not in the data. Write "price to be set after scoping" for any price and leave timelines out.', '- Option savings: copy the Option A, B or C line from ALLOWED NUMBERS. Do not add or invent any other option figure.']),
     '',
     'Part 1: the readout script, as a table with the columns Minutes, Block, What I say (word for word)',
     '- Minutes 0 to 5: recap what they told us, in their own words.',
@@ -1146,16 +1178,16 @@ function promptReadout(st, res) {
     '- Minutes 10 to 25: walk the Opportunity Matrix. Start with the Quick Wins. Say plainly what is in Fix the process first and Not Now.',
     '- Minutes 25 to 40: the 90-day roadmap and the three build options, each with the audit fee credit.',
     '- Minutes 40 to 50: questions. The five questions they are most likely to ask, with a short honest answer for each.',
-    '- Minutes 50 to 60: the next step, with the 30-day fee credit deadline.',
+    '- Minutes 50 to 60: the next step, with the fee credit deadline written as "(date you set)".',
     'End on this closing question: "Which option would you like to start with?"',
     '',
-    'Part 2: the build proposal for ' + opt + ', with these headings: Scope, What we build, Timeline, Investment ("to be quoted"), Audit fee credit and the date it expires (30 days after the readout), What we need from their team, Risks, Next steps.',
+    'Part 2: the build proposal for ' + opt + ', with these headings: Scope, What we build, Investment ("price to be set after scoping"), Audit fee credit and its expiry (write "(date you set)", no calendar date), What we need from their team, Risks, Next steps.',
     '',
     'Under 1,000 words apart from the tables.'
   ].join('\n');
 }
 function promptA2(st) {
-  return USING + 'take the website, the owner\'s LinkedIn, my niche and what my agency builds from client.website, client.ownerLinkedin, client.industry and client.agencyBuilds. Then run this prompt with web search on.\n\n' + promptA(st);
+  return USING + 'take the website, the owner\'s LinkedIn, my niche and what my agency builds from client.website, client.ownerLinkedin, client.industry and client.agencyBuilds. Then run this prompt. If you can browse, check the website. If you can\'t, say so in one line and use only what I gave you.\n\n' + promptA(st);
 }
 function promptB2(st, res) {
   var c = st.client, price = res.fee !== null ? money(res.fee, res.cur) : '';
@@ -1165,24 +1197,24 @@ function promptB2(st, res) {
 }
 
 var STEPS = [
-  { n: 1, phase: 'Free call', title: 'Research the business', use: 'Run it about 15 minutes before the free call, with web search on.', build: promptA2,
+  { n: 1, phase: 'Free call', title: 'Research the business', use: 'Run it about 15 minutes before the free call. Web search helps if your chat has it.', build: withEnd(promptA2),
     check: 'Every claim has a source on the page. Every "unknown" stays unknown. The one observation is something you can see yourself.', how: 'Pre-call research from the website and LinkedIn. Facts only, "unknown" otherwise, so you never say a wrong detail to the owner.' },
-  { n: 2, phase: 'Free call', title: 'Turn the call into scorecard rows and a recap', use: 'Right after the call. It reads the call notes from the client data.', build: promptB2,
+  { n: 2, phase: 'Free call', title: 'Turn the call into scorecard rows and a recap', use: 'Right after the call. It reads the call notes from the client data.', build: withEnd(promptB2),
     check: 'Every number against your notes. The (est) labels stay. The tier it picks matches the staff count. The recap uses the owner\'s own problems.', how: 'Call notes become the top three problems, scorecard rows, a fit decision and the recap email.' },
-  { n: 3, phase: 'Day 1', title: 'Kickoff agenda and interview list', use: 'The day the audit starts. Gives you the 60-minute kickoff and who to interview.', build: promptKickoff,
+  { n: 3, phase: 'Day 1', title: 'Kickoff agenda and interview list', use: 'The day the audit starts. Gives you the 60-minute kickoff and who to interview.', build: withEnd(promptKickoff),
     check: 'Everyone who does a workflow in your table is on the interview list. The count fits the tier. Nothing in the agenda promises a result.', how: 'Builds the 60-minute kickoff agenda and the list of who to interview, and why.' },
-  { n: 4, phase: 'Days 2 to 4, before each interview', title: 'Interview questions for one person', use: 'Run it once per person, the day before. Fill in the role and what they do.', build: promptQuestions, inputs: 'questions',
+  { n: 4, phase: 'Days 2 to 4, before each interview', title: 'Interview questions for one person', use: 'Run it once per person, the day before. Fill in the role and what they do.', build: withEnd(promptQuestions), inputs: 'questions',
     check: 'Plain words. Each question gets a number or a story. The opening line sounds like you. No question hints at the answer.', how: 'Writes an opening line, 8 to 12 plain questions around the four numbers, and a follow-up for every vague answer.' },
-  { n: 5, phase: 'Days 2 to 4, after each interview', title: 'Interview transcript to workflow rows', use: 'Within an hour of each interview. Paste the transcript.', build: promptInterview, inputs: 'interview',
+  { n: 5, phase: 'Days 2 to 4, after each interview', title: 'Interview transcript to workflow rows', use: 'Within an hour of each interview. Paste the transcript.', build: withEnd(promptInterview), inputs: 'interview',
     check: 'Every number and every quote is in the transcript. Guesses carry (est). Anything not said is "unknown".', how: 'Pulls workflow rows with the four numbers and exact quotes from one transcript. Nothing outside the transcript.' },
-  { n: 6, phase: 'Days 5 to 9', title: 'AI readiness score', use: 'Once every interview is in the table above.', build: promptReadiness,
+  { n: 6, phase: 'Days 5 to 9', title: 'AI readiness score', use: 'Once every interview is in the table above.', build: withEnd(promptReadiness),
     check: 'Each score has evidence from the rows. Unknowns are listed as questions. The level matches the bands: 75% and up, 50 to 74%, under 50%.', how: 'Scores six pillars of four checks, 0 to 3 each, and names the level.' },
-  { n: 7, phase: 'Days 5 to 9', title: 'Rank the opportunities and plan 90 days', use: 'After you have scored Impact, Effort and AI Fit in the table.', build: promptRank,
-    check: 'Reasons match what the owner said. Box and override follow the rules. No new numbers. Prices read "to be quoted" unless they are yours.', how: 'Scores with reasons, the matrix with the AI Fit override, a 90-day roadmap and three build options.' },
-  { n: 8, phase: 'Days 5 to 9', title: 'Write the audit report', use: 'When the numbers are final. This is the report the client keeps.', build: promptReport,
+  { n: 7, phase: 'Days 5 to 9', title: 'Rank the opportunities and plan 90 days', use: 'After you have scored Impact, Effort and AI Fit in the table.', build: withEnd(promptRank),
+    check: 'Reasons match what the owner said. Box and override follow the rules. No new numbers. Prices read "price to be set after scoping" unless you entered them.', how: 'Scores with reasons, the matrix with the AI Fit override, a 90-day roadmap and three build options.' },
+  { n: 8, phase: 'Days 5 to 9', title: 'Write the audit report', use: 'When the numbers are final. This is the report the client keeps.', build: withEnd(promptReport),
     check: 'Every figure against the table above. No new number has appeared. Fix the process first items sit under Not now. Tables are there.', how: 'Writes the full eleven-section client-ready report, using only the numbers given.' },
-  { n: 9, phase: 'Day 10', title: 'Readout script and build proposal', use: 'Before the 60-minute readout. Pick the option you expect them to choose.', build: promptReadout, inputs: 'readout',
-    check: 'The minutes add up to 60. Every number is from the table. The script ends on "Which option would you like to start with?". The fee credit date is 30 days out.', how: 'Scripts the 60 minutes in the deck\'s order and drafts the proposal for the chosen option.' }
+  { n: 9, phase: 'Day 10', title: 'Readout script and build proposal', use: 'Before the 60-minute readout. Pick the option you expect them to choose.', build: withEnd(promptReadout), inputs: 'readout',
+    check: 'The minutes add up to 60. Every number is from the table. The script ends on "Which option would you like to start with?". The fee credit expiry reads "(date you set)".', how: 'Scripts the 60 minutes in the deck\'s order and drafts the proposal for the chosen option.' }
 ];
 function allPrompts(st, res) {
   var o = {};
@@ -1191,7 +1223,7 @@ function allPrompts(st, res) {
 }
 function stepForCopy(st, res, n, p) {
   p = p || allPrompts(st, res);
-  return st.own ? 'Client data (JSON):\n' + dataJson(st, res) + '\n\n' + p[n] : p[n];
+  return st.own ? 'Client data (JSON):\n' + dataBlock(st, res) + '\n\n' + p[n] : p[n];
 }
 function allStepsText(st, res) {
   var p = allPrompts(st, res);
@@ -1399,7 +1431,7 @@ function fitClamps() {
 function renderPrompts(res) {
   var box = $('#prompts');
   if (!box.children.length) {
-    box.innerHTML = '<li class="step data"><div class="num zero" aria-hidden="true">0</div><div class="step-body"><div class="step-top"><span class="tag">Start here</span><h3>Client data</h3><p>Copy this first and send it. The AI should reply "Ready". It holds every number the prompts use.</p></div>' + pbox('data', 'Client data and first line') + '</div></li>' +
+    box.innerHTML = '<li class="step data"><div class="num zero" aria-hidden="true">0</div><div class="step-body"><div class="step-top"><span class="tag">Start here</span><h3>Client data</h3><p>Copy this first and send it. The AI should reply "Ready". It holds every number the prompts use.</p><p class="model-note">Works best in Claude Sonnet or ChatGPT\'s main model. Small or "mini" models may invent numbers: check every figure.</p></div>' + pbox('data', 'Client data and first line') + '</div></li>' +
       STEPS.map(function (s) {
         return '<li class="step"><div class="num" aria-hidden="true">' + s.n + '</div><div class="step-body">' +
           '<div class="step-top"><span class="tag">' + esc(s.phase) + '</span><h3>Prompt ' + s.n + ': ' + esc(s.title) + '</h3><p>' + esc(s.use) + '</p></div>' +
@@ -1760,7 +1792,7 @@ function selfTest() {
   ok('own switch on prepends the JSON', a2.length > a1.length && a2.indexOf('"totals"') > -1 && a1.indexOf('"totals"') < 0);
   var all = allStepsText(sf, res);
   ok('Copy all: intro, JSON, 9 separators, send-one-at-a-time', all.indexOf(INTRO) === 0 && (all.match(/--- PROMPT \d ---/g) || []).length === 9 && /one at a time/.test(all), (all.match(/--- PROMPT \d ---/g) || []).length);
-  ok('step 8 asks for a client-ready report ending with the PDF/Word line', /If you can create files, give me this as a PDF or Word document\.\s*$/.test(String(pp[8] !== undefined ? pp[8] : STEPS[7].build(sf, res))), STEPS[7].title);
+  ok('step 8 asks for a client-ready report with the PDF/Word line', /If you can create files, give me this as a PDF or Word document\./.test(String(pp[8] !== undefined ? pp[8] : STEPS[7].build(sf, res))), STEPS[7].title);
   var md = buildMd(sf, res);
   ok('export has nine step headings and the client data', (md.match(/^## Prompt \d+: /gm) || []).length === 9 && md.indexOf('## Client data') > -1);
   ok('no dashes in prompts, JSON or export', [md, all].every(function (t) { return t.indexOf(DASH1) < 0 && t.indexOf(DASH2) < 0; }));
@@ -1916,6 +1948,19 @@ function panelTest() {
   var d = $('#printdoc').textContent;
   ok('Print doc has cover, title, workflow table, matrix, ranked, tier, legend', /AI Opportunity Audit: summary/.test(d) && /Bright Smile Dental/.test(d) && /What the work costs today/.test(d) && /opportunity matrix/.test(d) && /What to do first/.test(d) && /Audit size and fee/.test(d) && /How to read this/.test(d), d.length);
   ok('Print title is "<Business> AI Audit Summary"', printTitle() === 'Bright Smile Dental AI Audit Summary', printTitle());
+
+
+  /* ---- prompt round (v4) ---- */
+  loadPreset('pune');
+  var pn = promptTexts(compute(state)), pd = pn.data;
+  ok('P4 1: Client data has an ALLOWED NUMBERS block with Indian grouping', /ALLOWED NUMBERS/.test(pd) && /₹4,41,600/.test(pd.slice(pd.indexOf('ALLOWED NUMBERS'))), pd.slice(pd.indexOf('ALLOWED NUMBERS'), pd.indexOf('ALLOWED NUMBERS') + 300));
+  ok('P4 1: every one of the nine prompts ends with the ALLOWED NUMBERS line', STEPS.every(function (s) { return String(pn[s.n]).trim().slice(-END_LINE.length) === END_LINE; }));
+  ok('P4 2: no interview length, no 30-day expiry, no "to be quoted" in prompts 3 to 9', [3, 4, 7, 8, 9].every(function (n) { return !/\bLength\b|30 minutes|30 days after|to be quoted|within 30-day|Timeline,/.test(pn[n]); }) && /\(date you set\)/.test(pn[9]) && /price to be set after scoping/.test(pn[9]) && /price to be set after scoping/.test(pn[7]), 1);
+  ok('P4 3: prompt 1 has the browse / cannot-browse line and no "web search on"', /If you can browse, check the website\. If you can't, say so in one line and use only what I gave you\./.test(pn[1]) && !/web search on/.test(pn[1]));
+  loadPreset('sf');
+  var sd = promptTexts(compute(state)).data;
+  ok('P4 4: SF allowed numbers carry the close rate and average sale (the 03 failure) and option savings (the 09 failure)', /Close rate: 45%/.test(sd) && /Average sale: \$1,100/.test(sd) && /Option A\)/.test(sd) && /Option B\)/.test(sd) && /never call it unknown/.test(promptTexts(compute(state))[3]), sd.slice(sd.indexOf('ALLOWED NUMBERS'), sd.indexOf('ALLOWED NUMBERS') + 500));
+  ok('P4 5: model note sits by Client data', /Works best in Claude Sonnet or ChatGPT's main model\. Small or "mini" models may invent numbers: check every figure\./.test($('#prompts li.data, #prompts li:first-child').textContent));
 
   /* ---- fix round 3 ---- */
   var op = window.print; window.print = function () {};
