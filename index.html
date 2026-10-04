@@ -1,0 +1,2006 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit Prompt Builder</title>
+<meta name="description" content="Fill in what the owner told you. Copy the prompts into any AI. Read what comes back, fix what's wrong, then send it.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<script>
+/* Set the theme before first paint so there is no flash. Storage may be blocked: page works without it. */
+(function () {
+  try {
+    var t = localStorage.getItem('fwai-audit-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
+</script>
+<style>
+/* Tokens ported from decks/ai-audit-playbook/presentation.html (dark = the deck's own values).
+   Light is the same system on a bright ground. One accent: marigold gold. */
+:root {
+  --ground:    #F5F4F0;
+  --ground-2:  #ECEAE3;
+  --riser:     #FFFFFF;
+  --riser-2:   #F3F1EA;
+  --field:     #FFFFFF;
+  --ink:       #17140E;
+  --ink-dim:   #5A5446;
+  --ink-faint: #6B6456;
+  --gold:      #D69A1E;
+  --gold-text: #8A5C05;
+  --gold-lift: #F6D89B;
+  --gold-sink: #7A5A1B;
+  --on-gold:   #17140E;
+  --go:        #17824B;
+  --wait:      #946200;
+  --stop:      #B83A36;
+  --slate:     #28383A;
+  --rule:      rgba(23,20,14,.16);
+  --rule-soft: rgba(23,20,14,.07);
+  --bloom:     rgba(214,154,30,.20);
+  --shadow:    0 18px 40px -18px rgba(90,60,5,.28);
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body:    "Manrope", "Helvetica Neue", Arial, sans-serif;
+  --f-mono:    "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r-card: 14px;
+  --r-ctl: 10px;
+  --r-tag: 6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:#0B0A08; --ground-2:#100E0A; --riser:#17140E; --riser-2:#1F1B13; --field:#100E0A;
+    --ink:#F3EEE3; --ink-dim:#B3AB9D; --ink-faint:#A0988B;
+    --gold:#E0A73B; --gold-text:#E0A73B; --gold-lift:#F6D89B; --gold-sink:#7A5A1B; --on-gold:#17140E;
+    --go:#2FBF71; --wait:#E3A72F; --stop:#E5706C;
+    --rule:rgba(243,238,227,.13); --rule-soft:rgba(243,238,227,.07);
+    --bloom:rgba(224,167,59,.14); --shadow:0 18px 50px -18px rgba(0,0,0,.7);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground:#0B0A08; --ground-2:#100E0A; --riser:#17140E; --riser-2:#1F1B13; --field:#100E0A;
+  --ink:#F3EEE3; --ink-dim:#B3AB9D; --ink-faint:#A0988B;
+  --gold:#E0A73B; --gold-text:#E0A73B; --gold-lift:#F6D89B; --gold-sink:#7A5A1B; --on-gold:#17140E;
+  --go:#2FBF71; --wait:#E3A72F; --stop:#E5706C;
+  --rule:rgba(243,238,227,.13); --rule-soft:rgba(243,238,227,.07);
+  --bloom:rgba(224,167,59,.14); --shadow:0 18px 50px -18px rgba(0,0,0,.7);
+  color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  min-height: 100dvh;
+}
+.bg {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(110% 70% at 90% 0%, var(--bloom), transparent 58%),
+    radial-gradient(80% 60% at 0% 100%, rgba(40,56,58,.22), transparent 60%);
+}
+.bg::after {
+  content: ""; position: absolute; inset: 0; opacity: .55;
+  background-image:
+    linear-gradient(to right, var(--rule-soft) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--rule-soft) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(120% 80% at 50% 0%, #000 10%, transparent 70%);
+  -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 10%, transparent 70%);
+}
+:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.wrap { position: relative; z-index: 1; width: 100%; max-width: 1240px; margin: 0 auto; padding: 0 16px; }
+
+/* Header */
+.top { padding: 22px 0 8px; }
+.hdr { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.kicker {
+  font-family: var(--f-mono); font-size: 12px; font-weight: 700; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--gold-text); margin: 0 0 14px;
+}
+h1 {
+  font-family: var(--f-display); font-weight: 800; letter-spacing: -.035em; line-height: .98;
+  font-size: clamp(2.5rem, 7.5vw, 5.4rem); margin: 0 0 16px;
+}
+h1 em { font-style: normal; color: var(--gold); }
+.lede { font-size: clamp(1.05rem, 2vw, 1.3rem); color: var(--ink-dim); max-width: 46ch; margin: 0; }
+@media (max-width: 700px) { .hdr { flex-direction: column-reverse; align-items: stretch; } .hdr .toggle { align-self: flex-end; } }
+.hdr > div:first-child { min-width: 0; }
+.toggle {
+  display: inline-flex; flex: none; padding: 3px; border-radius: 999px;
+  background: var(--riser); border: 1px solid var(--rule);
+}
+.toggle button {
+  font: 600 13px var(--f-mono); letter-spacing: .04em; color: var(--ink-dim);
+  background: transparent; border: 0; padding: 8px 14px; border-radius: 999px; cursor: pointer;
+  min-height: 36px;
+}
+.toggle button[aria-pressed="true"] { background: var(--gold); color: var(--on-gold); }
+
+/* Presets */
+.presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 24px; }
+.presets button {
+  font: 700 14px var(--f-display); letter-spacing: -.005em; color: var(--ink);
+  background: var(--riser); border: 1px solid var(--rule); border-radius: 999px;
+  padding: 11px 18px; cursor: pointer; min-height: 44px; text-align: left;
+  transition: transform .18s cubic-bezier(.16,1,.3,1), border-color .18s;
+}
+.presets button:hover { border-color: var(--gold); transform: translateY(-1px); }
+.presets button:active { transform: scale(.98); }
+.presets button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+
+/* Layout */
+.layout { display: grid; grid-template-columns: minmax(0, 1.04fr) minmax(0, .96fr); gap: 28px; align-items: start; }
+.col-form { display: grid; gap: 18px; min-width: 0; }
+.col-result { position: sticky; top: 16px; max-height: calc(100dvh - 32px); overflow: auto; min-width: 0; padding-right: 2px; }
+@media (max-width: 960px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .col-result { position: static; max-height: none; overflow: visible; }
+}
+
+.card {
+  background: var(--riser); border: 1px solid var(--rule); border-radius: var(--r-card);
+  padding: 20px; box-shadow: var(--shadow); min-width: 0;
+}
+.card h2 {
+  font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; font-size: 1.5rem;
+  line-height: 1.1; margin: 0 0 4px;
+}
+.card .sub { color: var(--ink-dim); font-size: .95rem; margin: 0 0 16px; }
+.tag {
+  font-family: var(--f-mono); font-size: 11px; font-weight: 700; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--gold-text);
+}
+
+/* Form controls */
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 560px) { .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .g2.stack-s { grid-template-columns: minmax(0, 1fr); } }
+.f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.f.span { grid-column: 1 / -1; }
+.f label, .f .lab { font-size: 13px; font-weight: 700; color: var(--ink-dim); letter-spacing: .01em; }
+.f small { font-size: 12px; color: var(--ink-faint); }
+input[type=text], input[type=number], input[type=url], select, textarea {
+  width: 100%; font: 500 16px var(--f-body); color: var(--ink); background: var(--field);
+  border: 1px solid var(--rule); border-radius: var(--r-ctl); padding: 11px 12px; min-height: 46px;
+}
+input::placeholder, textarea::placeholder { color: var(--ink-faint); opacity: 1; }
+textarea { resize: vertical; line-height: 1.5; }
+input:focus, select:focus, textarea:focus { outline: 2px solid var(--gold); outline-offset: 1px; border-color: var(--gold); }
+input[type=number] { font-family: var(--f-mono); font-weight: 500; }
+
+.btn {
+  font: 800 14px var(--f-display); letter-spacing: .01em; cursor: pointer; border-radius: var(--r-ctl);
+  border: 1px solid var(--rule); background: var(--riser-2); color: var(--ink);
+  padding: 12px 18px; min-height: 46px; white-space: nowrap;
+  transition: transform .18s cubic-bezier(.16,1,.3,1), background .18s, border-color .18s;
+}
+.btn:hover { border-color: var(--gold); transform: translateY(-1px); }
+.btn:active { transform: translateY(0) scale(.98); }
+.btn--gold { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+.btn--gold:hover { background: var(--gold-lift); border-color: var(--gold-lift); }
+.btn--sm { padding: 8px 14px; min-height: 40px; font-size: 13px; }
+.btn--ghost { background: transparent; }
+.btn.done { background: var(--go); border-color: var(--go); color: #fff; }
+
+/* Workflow rows */
+.wf { background: var(--riser-2); border: 1px solid var(--rule); border-radius: var(--r-card); padding: 16px; display: grid; gap: 12px; }
+.wf-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.wf-head .tag { white-space: nowrap; }
+.rm { background: transparent; border: 1px solid var(--rule); color: var(--ink-dim); border-radius: var(--r-ctl); padding: 6px 12px; min-height: 40px; font: 700 13px var(--f-mono); cursor: pointer; }
+.rm:hover { border-color: var(--stop); color: var(--stop); }
+.add { width: 100%; margin-top: 12px; border-style: dashed; border-color: var(--gold); color: var(--gold-text); background: transparent; }
+
+/* Homework */
+.hw { border-color: var(--gold); background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 12%, var(--riser)), var(--riser)); }
+.hw h2 { margin-bottom: 8px; }
+.hw blockquote {
+  margin: 14px 0; padding: 14px 16px; border-left: 4px solid var(--gold); background: var(--riser-2);
+  border-radius: 0 var(--r-ctl) var(--r-ctl) 0; font-size: 1.02rem; line-height: 1.65;
+}
+details.check { border: 1px solid var(--rule); border-radius: var(--r-ctl); background: var(--riser-2); }
+details.check summary { cursor: pointer; padding: 13px 16px; font: 800 14px var(--f-display); min-height: 46px; }
+details.check .inner { padding: 0 16px 16px; font-size: .95rem; }
+details.check ul { margin: 8px 0 0; padding-left: 20px; }
+details.check li { margin: 5px 0; }
+
+/* Result panel */
+.res { display: grid; gap: 16px; }
+.hero-num {
+  background: linear-gradient(160deg, color-mix(in srgb, var(--gold) 20%, var(--riser)), var(--riser) 70%);
+  border: 1px solid var(--gold); border-radius: var(--r-card); padding: 20px; box-shadow: var(--shadow);
+}
+.hero-num .big {
+  font-family: var(--f-display); font-weight: 800; letter-spacing: -.04em; line-height: 1;
+  font-size: clamp(2.3rem, 5.5vw, 3.6rem); color: var(--gold-text); margin: 6px 0 4px; overflow-wrap: anywhere;
+}
+.hero-num .big.big-wait { font-size: clamp(1.25rem, 3vw, 1.7rem); letter-spacing: -.02em; line-height: 1.2; }
+.verdict.wait { color: var(--ink-dim); border-color: var(--rule); background: var(--riser); }
+.hw-btns { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 4px; }
+.hero-num .cap { color: var(--ink-dim); font-size: .95rem; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.stat { background: var(--riser); border: 1px solid var(--rule); border-radius: var(--r-card); padding: 14px 16px; min-width: 0; }
+.stat .v { font-family: var(--f-display); font-weight: 800; letter-spacing: -.03em; font-size: 1.55rem; line-height: 1.1; margin-top: 4px; overflow-wrap: anywhere; }
+.stat .c { font-size: 12.5px; color: var(--ink-dim); margin-top: 2px; }
+.rank { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rk { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; background: var(--riser-2); border: 1px solid var(--rule); border-radius: var(--r-ctl); padding: 12px 14px; }
+.rk-n { font: 800 13px var(--f-mono); color: var(--gold-text); }
+.rk-t { font-weight: 800; font-family: var(--f-display); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.rk-p { font: 800 1.3rem var(--f-display); letter-spacing: -.03em; text-align: right; }
+.rk-p small { font: 500 11px var(--f-mono); color: var(--ink-faint); }
+.rk-d { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: 4px 14px; font: 500 12.5px var(--f-mono); color: var(--ink-dim); }
+.rk-d b { color: var(--ink); font-weight: 700; }
+.badge { display: inline-block; font: 700 11px var(--f-mono); letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: var(--r-tag); margin-left: 6px; vertical-align: 2px; white-space: nowrap; }
+.b-win { background: color-mix(in srgb, var(--go) 22%, transparent); color: var(--go); border: 1px solid var(--go); }
+.b-swing { background: color-mix(in srgb, var(--gold) 24%, transparent); color: var(--gold-text); border: 1px solid var(--gold); }
+.b-fill { background: var(--riser); color: var(--ink-dim); border: 1px solid var(--rule); }
+.b-not { background: color-mix(in srgb, var(--slate) 55%, transparent); color: var(--ink-dim); border: 1px solid var(--rule); }
+.b-fix { background: color-mix(in srgb, var(--stop) 20%, transparent); color: var(--stop); border: 1px solid var(--stop); }
+.b-est { background: transparent; color: var(--wait); border: 1px dashed var(--wait); }
+.matrix { display: flex; flex-wrap: wrap; gap: 8px; }
+.matrix span { font: 700 12px var(--f-mono); padding: 6px 10px; border-radius: var(--r-tag); }
+.tier { display: grid; gap: 12px; }
+.tier .name { font: 800 1.9rem var(--f-display); letter-spacing: -.03em; }
+.tier .fee { font: 800 1.2rem var(--f-mono); color: var(--gold-text); }
+.verdict { padding: 12px 14px; border-radius: var(--r-ctl); font-weight: 700; border: 1px solid; }
+.verdict.yes { color: var(--go); border-color: var(--go); background: color-mix(in srgb, var(--go) 12%, transparent); }
+.verdict.no { color: var(--stop); border-color: var(--stop); background: color-mix(in srgb, var(--stop) 12%, transparent); }
+.chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.chip { border: 1px solid var(--rule); border-radius: var(--r-ctl); padding: 8px 10px; font: 500 12px var(--f-mono); color: var(--ink-dim); background: var(--riser-2); }
+.chip b { display: block; color: var(--ink); font: 800 13px var(--f-display); }
+.chip.on { border-color: var(--gold); }
+.empty { color: var(--ink-dim); border: 1px dashed var(--rule); border-radius: var(--r-ctl); padding: 16px; font-size: .95rem; }
+.small { font-size: 13px; color: var(--ink-dim); margin: 0; }
+.hint { font-size: 12px; font-weight: 700; color: var(--gold); min-height: 1em; }
+.sal { margin-top: 14px; border: 1px dashed var(--rule); border-radius: var(--r-card); padding: 12px 14px; }
+.sal summary { cursor: pointer; font-weight: 800; }
+.sal .grid { margin-top: 10px; }
+.sal .out { margin: 10px 0 0; font: 800 1.1rem var(--f-display); color: var(--gold); }
+
+/* Sections below */
+section.block { padding: 56px 0 8px; }
+section.block > h2 {
+  font-family: var(--f-display); font-weight: 800; letter-spacing: -.03em; line-height: 1;
+  font-size: clamp(1.9rem, 4.2vw, 3rem); margin: 0 0 8px;
+}
+section.block > .sub { color: var(--ink-dim); margin: 0 0 22px; max-width: 60ch; }
+.path { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; counter-reset: none; }
+.step { position: relative; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 14px; }
+.step::before { content: ""; position: absolute; left: 25px; top: 56px; bottom: -22px; width: 2px; background: var(--rule); }
+.step:last-child::before { display: none; }
+.num { width: 52px; height: 52px; border-radius: var(--r-card); background: var(--gold); color: var(--on-gold); display: grid; place-items: center; font: 800 1.5rem var(--f-display); letter-spacing: -.03em; position: relative; z-index: 1; }
+.step-body { min-width: 0; }
+.step-top { margin-bottom: 10px; }
+.step-top h3 { margin: 4px 0 4px; font: 800 clamp(1.15rem, 2.4vw, 1.5rem) var(--f-display); letter-spacing: -.02em; line-height: 1.1; }
+.step-top p { margin: 0; color: var(--ink-dim); font-size: .97rem; }
+.step-in { display: grid; gap: 10px; padding: 14px 16px; margin-bottom: 10px; background: var(--riser); border: 1px solid var(--rule); border-radius: var(--r-card); }
+.step-in textarea { min-height: 110px; resize: vertical; }
+.chk { margin: 10px 0 0; padding: 12px 16px; border-left: 3px solid var(--gold); background: var(--riser); border-radius: 0 var(--r-ctl) var(--r-ctl) 0; font-size: .95rem; color: var(--ink-dim); }
+.chk b { color: var(--ink); }
+@media (max-width: 560px) { .step { grid-template-columns: 40px minmax(0, 1fr); gap: 10px; } .num { width: 40px; height: 40px; font-size: 1.15rem; } .step::before { left: 19px; top: 44px; } }
+.howlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.howlist li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: baseline; padding: 12px 16px; background: var(--riser); border: 1px solid var(--rule); border-radius: var(--r-card); color: var(--ink-dim); font-size: .97rem; }
+.howlist li b { font: 800 1.1rem var(--f-display); color: var(--gold); }
+.pb { background: var(--riser); border: 1px solid var(--rule); border-radius: var(--r-card); overflow: hidden; box-shadow: var(--shadow); }
+.pb-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.pb-head h3 { margin: 0; font: 800 1.15rem var(--f-display); letter-spacing: -.015em; }
+.pb pre {
+  margin: 0; padding: 16px; max-height: 340px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 500 13px/1.6 var(--f-mono); color: var(--ink); background: var(--field);
+}
+.note-gold {
+  margin-top: 18px; padding: 16px 18px; border-radius: var(--r-card); background: var(--gold); color: var(--on-gold);
+  font: 800 clamp(1rem, 2vw, 1.2rem) var(--f-display); letter-spacing: -.01em;
+}
+.exp { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.how { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 820px) { .how { grid-template-columns: minmax(0, 1fr); } }
+.how .card h3 { font: 800 1.25rem var(--f-display); margin: 6px 0 8px; letter-spacing: -.02em; }
+.how .card p { margin: 0; color: var(--ink-dim); font-size: .97rem; }
+.faq { display: grid; gap: 10px; }
+.faq details { background: var(--riser); border: 1px solid var(--rule); border-radius: var(--r-card); }
+.faq summary { cursor: pointer; padding: 16px 18px; font: 800 1.05rem var(--f-display); letter-spacing: -.01em; list-style: none; min-height: 52px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; float: right; font: 700 1.3rem var(--f-mono); color: var(--gold-text); }
+.faq details[open] summary::after { content: "-"; }
+.faq details[open] { border-color: var(--gold); }
+.faq p { margin: 0; padding: 0 18px 18px; color: var(--ink-dim); max-width: 70ch; }
+.closing {
+  margin: 56px 0 40px; padding: clamp(28px, 6vw, 56px); border-radius: var(--r-card); border: 1px solid var(--gold);
+  background: linear-gradient(150deg, color-mix(in srgb, var(--gold) 26%, var(--riser)), var(--riser) 75%);
+  box-shadow: var(--shadow);
+}
+.closing p { margin: 0; font: 800 clamp(1.6rem, 4.6vw, 3.2rem) var(--f-display); letter-spacing: -.03em; line-height: 1.05; max-width: 20ch; }
+.closing p em { font-style: normal; color: var(--gold-text); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise { animation: rise .7s cubic-bezier(.16,1,.3,1) both; }
+  .rise:nth-child(2) { animation-delay: .06s; } .rise:nth-child(3) { animation-delay: .12s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  .flash { animation: flash .5s ease-out; }
+  @keyframes flash { from { color: var(--ink); } to { } }
+}
+
+
+/* ===== v2 ===== */
+:root { --trk: 68px; }
+:is(h1,h2,h3,[id]) { scroll-margin-top: calc(var(--trk) + 12px); }
+.sec { scroll-margin-top: calc(var(--trk) + 6px); padding-top: 30px; }
+.sec-h { font-family: var(--f-display); font-weight: 800; letter-spacing: -.03em; line-height: 1.02; font-size: clamp(1.7rem, 3.6vw, 2.5rem); margin: 0 0 6px; display: flex; align-items: center; gap: 14px; }
+.sec-h .sn { flex: none; padding: 8px 14px; border-radius: 999px; display: grid; place-items: center; background: var(--gold); color: var(--on-gold); font: 800 .95rem var(--f-display); white-space: nowrap; }
+.sec-sub { color: var(--ink-dim); margin: 0 0 18px; max-width: 62ch; font-size: 1.02rem; }
+
+/* How to use */
+.howto { margin: 24px 0 0; border: 1.5px solid var(--gold); border-radius: var(--r-card); background: linear-gradient(180deg, color-mix(in srgb, var(--gold) 12%, var(--riser)), var(--riser)); box-shadow: var(--shadow); max-width: 860px; }
+.howto summary { cursor: pointer; list-style: none; padding: 14px 20px; font: 800 1.2rem var(--f-display); letter-spacing: -.01em; min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.howto summary::-webkit-details-marker { display: none; }
+.howto summary::after { content: "+"; font: 700 1.6rem var(--f-mono); color: var(--gold-text); }
+.howto[open] summary::after { content: "-"; }
+.howto ol { margin: 0; padding: 4px 20px 6px 46px; display: grid; gap: 12px; font-size: 1.06rem; }
+.howto ol li::marker { font: 800 1.15rem var(--f-display); color: var(--gold-text); }
+.howto p { margin: 0; padding: 10px 20px 18px; color: var(--ink-dim); font-weight: 700; }
+
+/* Step tracker */
+.tracker { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--ground) 90%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1px solid var(--rule); margin-top: 18px; }
+.tracker .wrap { display: flex; align-items: center; gap: 12px; padding-top: 8px; padding-bottom: 8px; }
+.trk-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; flex: 1; min-width: 0; }
+.trk-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 50px; padding: 6px 12px; border-radius: 12px; border: 1px solid var(--rule); background: var(--riser); cursor: pointer; font: 800 14px var(--f-display); letter-spacing: -.005em; color: var(--ink); text-align: left; transition: border-color .18s, transform .18s cubic-bezier(.16,1,.3,1); }
+.trk-item:hover { border-color: var(--gold); transform: translateY(-1px); }
+.trk-item .n { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--riser-2); border: 1.5px solid var(--gold); color: var(--gold-text); font: 800 14px var(--f-display); }
+.lb { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
+.fl { display: none; font: 600 10.5px var(--f-mono); color: var(--ink-dim); letter-spacing: 0; margin-top: 1px; }
+.trk-item.filled { border-style: dashed; background: transparent; }
+.trk-item.filled .n { background: transparent; border: 1.5px dashed var(--ink-dim); color: var(--ink-dim); }
+.trk-item.filled .fl { display: block; }
+.trk-item.done .n { background: var(--go); border-color: var(--go); color: #fff; }
+.trk-item.cur { border-color: var(--gold); box-shadow: 0 0 0 2px color-mix(in srgb, var(--gold) 38%, transparent); }
+.trk-item.cur .n { background: var(--gold); color: var(--on-gold); }
+.trk-save { flex: none; font: 600 12px var(--f-mono); color: var(--ink-dim); width: 64px; line-height: 1.3; white-space: nowrap; overflow: hidden; }
+.tracker .nxwrap { padding-top: 0; padding-bottom: 8px; display: block; }
+.tracker .next { display: flex; align-items: center; margin: 0; padding: 0 14px; height: 38px; border-radius: 10px; font: 800 .98rem var(--f-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tracker .next b { font-size: .62rem; margin-right: 12px; }
+.savebar > span { white-space: nowrap; }
+.curbar { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; font: 700 14px var(--f-display); }
+.curbar button { min-height: 40px; padding: 6px 16px; border-radius: 999px; border: 1.5px solid var(--rule); background: var(--riser); color: var(--ink); font: 800 14px var(--f-display); cursor: pointer; }
+.curbar button[aria-pressed="true"] { background: var(--gold); border-color: var(--gold); color: var(--on-gold); }
+.rate-row { display: grid; grid-template-columns: minmax(130px, 190px) 1fr; gap: 10px 14px; align-items: start; margin-top: 10px; }
+.rate-note { margin: 0; font-size: 12.5px; font-weight: 700; color: var(--gold-text); min-height: 2.7em; line-height: 1.35; padding-top: 22px; }
+.scl { display: block; font-weight: 600; font-size: 11.5px; color: var(--ink-dim); letter-spacing: 0; }
+.legend { font-size: 12.5px; color: var(--ink-dim); margin: 8px 0 0; }
+.warn { color: var(--wait); font-weight: 700; }
+.f small.hn { display: block; }
+@media (max-width: 760px) {
+  :root { --trk: 74px; }
+  .rate-row { grid-template-columns: 1fr; }
+  .rate-note { padding-top: 0; }
+  .tracker .next { height: 46px; white-space: normal; font-size: .85rem; line-height: 1.2; }
+  .fl { display: none !important; }
+  .trk-item { flex-direction: column; gap: 3px; padding: 5px 3px; text-align: center; font-size: 11.5px; line-height: 1.15; min-height: 58px; justify-content: center; }
+  .trk-item .n { width: 26px; height: 26px; font-size: 13px; }
+  .trk-save { display: none; }
+  .tracker .wrap { padding-left: 8px; padding-right: 8px; }
+}
+
+/* Do this next */
+.next { display: none; margin: 0 0 18px; padding: 14px 18px; border-radius: var(--r-card); background: var(--gold); color: var(--on-gold); font: 800 clamp(1.1rem, 2.4vw, 1.4rem) var(--f-display); letter-spacing: -.012em; line-height: 1.2; box-shadow: var(--shadow); }
+.next.on { display: block; }
+.next b { font: 700 .62em var(--f-mono); letter-spacing: .14em; text-transform: uppercase; opacity: .78; margin-right: 12px; white-space: nowrap; }
+
+/* Pick + save */
+.presets { margin: 18px 0 16px; }
+.presets button { font-size: 15px; min-height: 50px; padding: 12px 20px; }
+.savebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 0 0 20px; color: var(--ink-dim); font: 600 13px var(--f-mono); }
+.savebar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--go); display: inline-block; margin-right: 8px; }
+.hw--s { padding: 16px 18px; }
+.hw--s .hw-t, .hw--big .hw-t { margin: 6px 0 0; font-size: 1.02rem; }
+.hw--big { padding: 24px; }
+.hw--big .hw-t { font-size: 1.15rem; font-weight: 600; }
+.iv { border: 1px solid var(--gold); border-radius: var(--r-card); background: var(--riser); box-shadow: var(--shadow); }
+.iv summary { cursor: pointer; padding: 16px 20px; font: 800 1.1rem var(--f-display); min-height: 56px; }
+.iv .inner { padding: 0 20px 18px; }
+.iv blockquote { margin: 10px 0 0; padding: 14px 16px; border-left: 4px solid var(--gold); background: var(--riser-2); border-radius: 0 var(--r-ctl) var(--r-ctl) 0; line-height: 1.65; }
+input[type=text], input[type=number], input[type=url], select, textarea { min-height: 50px; }
+.col-result { top: calc(var(--trk) + 14px); max-height: calc(100dvh - var(--trk) - 28px); }
+@media (max-width: 960px) { .col-result { top: auto; max-height: none; } }
+
+/* Prompt boxes: clamped, never a silent inner scroll */
+.pb pre { max-height: none; overflow: visible; }
+.pb pre.clamp { max-height: calc(8 * 1.6em + 32px); overflow: hidden; }
+.pb pre.clamp.cut { -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }
+.more { display: block; width: 100%; min-height: 50px; padding: 12px 16px; background: var(--riser-2); border: 0; border-top: 1px solid var(--rule); color: var(--gold-text); font: 800 15px var(--f-display); cursor: pointer; }
+.more:hover { background: var(--field); }
+.more[hidden] { display: none; }
+.copybig { min-height: 52px; padding: 14px 26px; font-size: 16px; }
+.own { display: flex; gap: 14px; align-items: flex-start; padding: 16px 18px; margin: 0 0 20px; border: 1px solid var(--rule); border-radius: var(--r-card); background: var(--riser); cursor: pointer; }
+.own input { width: 24px; height: 24px; min-height: 0; margin: 2px 0 0; accent-color: var(--gold); flex: none; }
+.own b { font: 800 1.05rem var(--f-display); display: block; }
+.own span { color: var(--ink-dim); font-size: .95rem; }
+.num.zero { background: var(--ink); color: var(--ground); }
+.step.data .pb { border-color: var(--gold); }
+.step .pb-head .tag { align-self: center; }
+.pdfbox { display: grid; gap: 14px; padding: 22px; border: 1px solid var(--gold); border-radius: var(--r-card); background: linear-gradient(150deg, color-mix(in srgb, var(--gold) 16%, var(--riser)), var(--riser) 75%); box-shadow: var(--shadow); }
+.pdfbox p { margin: 0; color: var(--ink-dim); }
+.pdfbox .btn--gold { justify-self: start; min-height: 58px; font-size: 17px; padding: 16px 30px; }
+.exp .btn { min-height: 50px; }
+
+/* Confirm dialog */
+.dlg { border: 1.5px solid var(--gold); border-radius: var(--r-card); background: var(--riser); color: var(--ink); padding: 24px; max-width: min(440px, calc(100vw - 32px)); box-shadow: var(--shadow); }
+.dlg::backdrop { background: rgba(0,0,0,.55); }
+.dlg p { margin: 0 0 18px; font: 800 1.15rem/1.3 var(--f-display); }
+.dlg .row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
+/* Print doc: hidden on screen */
+#printdoc { display: none; }
+.pd-note { font-size: 13px; }
+
+.pt { display: block; font: 700 10px var(--f-mono); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-dim); }
+.pg { display: block; font: 700 10.5px var(--f-mono); color: var(--gold-text); margin-top: 1px; }
+.pg:empty { display: none; }
+.tracker .next .nx-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nx-go { flex: none; margin-left: 12px; min-height: 30px; padding: 2px 12px; border-radius: 999px; border: 1.5px solid currentColor; background: transparent; color: inherit; font: 800 .8rem var(--f-display); cursor: pointer; }
+.sc3 > .f { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; }
+.wf .f { min-width: 0; }
+.wf .f label { line-height: 1.25; }
+.pd-legend p { font-size: 9pt; color: #5A5446; }
+@media (max-width: 760px) { .pt { display: none; } .nx-go { margin-left: 8px; font-size: .72rem; padding: 2px 8px; } .sec-h .sn { padding: 6px 10px; font-size: .8rem; } }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+<style id="print-css" media="print">
+@page { size: A4; margin: 14mm 14mm 16mm; }
+html, body { background: #fff !important; }
+body { color: #17140E; font-size: 11pt; min-height: 0; }
+body > *:not(#printdoc) { display: none !important; }
+#printdoc { display: block !important; font-family: "Manrope", "Helvetica Neue", Arial, sans-serif; color: #17140E; -webkit-print-color-adjust: exact; print-color-adjust: exact; line-height: 1.45; }
+#printdoc * { box-sizing: border-box; }
+.pd-cover { min-height: 262mm; display: flex; flex-direction: column; justify-content: space-between; border-top: 12px solid #D69A1E; padding: 14mm 2mm 0; break-after: page; page-break-after: always; }
+.pd-k { font: 700 9.5pt "JetBrains Mono", ui-monospace, Menlo, monospace; letter-spacing: .16em; text-transform: uppercase; color: #8A5C05; margin: 0 0 8mm; }
+.pd-name { font: 800 40pt/1 "Archivo", "Helvetica Neue", Arial, sans-serif; letter-spacing: -.035em; margin: 0 0 5mm; color: #17140E; }
+.pd-meta { font-size: 13pt; color: #5A5446; margin: 0; }
+.pd-title { font: 800 22pt/1.1 "Archivo", Arial, sans-serif; letter-spacing: -.02em; margin: 0 0 8mm; color: #8A5C05; }
+.pd-big { padding: 7mm 8mm; border: 2px solid #D69A1E; border-radius: 4mm; background: #FBF3E0; margin: 0 0 5mm; }
+.pd-big span { display: block; font: 700 9.5pt "JetBrains Mono", ui-monospace, Menlo, monospace; letter-spacing: .12em; text-transform: uppercase; color: #5A5446; }
+.pd-big b { display: block; font: 800 44pt/1.05 "Archivo", Arial, sans-serif; letter-spacing: -.04em; color: #17140E; margin-top: 2mm; }
+.pd-big2 { background: #17140E; border-color: #17140E; }
+.pd-big2 span { color: #F6D89B; }
+.pd-big2 b { color: #E0A73B; }
+.pd-lead { font-size: 13pt; margin: 4mm 0 0; color: #5A5446; font-weight: 600; }
+.pd-foot { font-size: 9.5pt; color: #5A5446; border-top: 1px solid #D9D2C0; padding-top: 4mm; margin: 0; }
+.pd-sec { margin: 0 0 8mm; }
+.pd-sec h2 { font: 800 15pt "Archivo", Arial, sans-serif; letter-spacing: -.02em; margin: 0 0 3mm; padding-bottom: 2mm; border-bottom: 2.5px solid #D69A1E; color: #17140E; break-after: avoid; page-break-after: avoid; }
+.pd-sec p { margin: 0 0 2mm; }
+.pd-tbl { width: 100%; border-collapse: collapse; font-size: 9pt; }
+.pd-tbl th { text-align: left; background: #17140E; color: #F6D89B; font: 700 8pt "JetBrains Mono", ui-monospace, Menlo, monospace; letter-spacing: .05em; text-transform: uppercase; padding: 2mm 2mm; }
+.pd-tbl td { padding: 2mm; border-bottom: 1px solid #D9D2C0; vertical-align: top; }
+.pd-tbl td.r, .pd-tbl th.r { text-align: right; }
+.pd-tbl tr { break-inside: avoid; page-break-inside: avoid; }
+.pd-tbl thead { display: table-header-group; }
+.pd-tbl tfoot td { font-weight: 800; border-top: 2px solid #17140E; border-bottom: 0; background: #FBF3E0; }
+.pd-est { font: 700 7pt "JetBrains Mono", monospace; color: #946200; border: 1px dashed #946200; padding: 0 1mm; margin-left: 1.5mm; border-radius: 1mm; }
+.pd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; }
+.pd-box { border: 1.5px solid #D9D2C0; border-radius: 3mm; padding: 3mm 4mm; break-inside: avoid; page-break-inside: avoid; }
+.pd-box h3 { margin: 0 0 1mm; font: 800 11pt "Archivo", Arial, sans-serif; }
+.pd-box small { display: block; color: #5A5446; font-size: 8pt; margin-bottom: 1.5mm; }
+.pd-box ul { margin: 0; padding-left: 4.5mm; font-size: 9.5pt; }
+.pd-box.win { border-color: #17824B; } .pd-box.swing { border-color: #D69A1E; } .pd-box.fix { border-color: #B83A36; grid-column: 1 / -1; }
+
+.pd-cover { justify-content: flex-start; gap: 24mm; }
+.pd-sec { margin-top: 6mm; }
+
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="wrap hdr rise">
+    <div>
+      <p class="kicker">Freedom with AI · Diamond exclusive toolkit</p>
+      <h1>Audit <em>Prompt</em> Builder</h1>
+      <p class="lede">An AI audit: you study a small business, find where it loses time and money, and sell the owner a plan to fix it. This page does the maths and writes the AI prompts for you.</p>
+      <div class="curbar" role="group" aria-label="Business in"><span class="curlab">Business in:</span><button type="button" data-cur="INR" aria-pressed="true">India ₹</button><button type="button" data-cur="USD" aria-pressed="false">USA $</button></div>
+      <details class="howto" id="howto">
+        <summary>How to use this (2 minutes)</summary>
+        <ol>
+          <li>Part 1: pick an example to see how it works, or start a new client.</li>
+          <li>Part 2: fill in what the owner told you. Blank boxes are fine: we use sensible defaults and mark them est.</li>
+          <li>Part 3: copy "Client data" into ChatGPT or Claude first. Then copy Prompt 1 to Prompt 9, one at a time, in the same chat.</li>
+          <li>Part 4: read every answer, fix what's wrong, then download the PDF for your client.</li>
+        </ol>
+        <p>Your work saves in this browser only. Nothing is sent anywhere.</p>
+      </details>
+    </div>
+    <div class="toggle" role="group" aria-label="Colour theme">
+      <button type="button" data-theme-btn="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-btn="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<nav class="tracker" aria-label="Your progress">
+  <div class="wrap">
+    <ol class="trk-list">
+      <li><button type="button" class="trk-item" data-go="sec-pick"><span class="n">1</span><span class="lb"><small class="pt">Part 1</small>Pick a client<small class="fl">Filled for you</small></span></button></li>
+      <li><button type="button" class="trk-item" data-go="sec-fill"><span class="n">2</span><span class="lb"><small class="pt">Part 2</small>Fill in<small class="fl">Filled for you</small></span></button></li>
+      <li><button type="button" class="trk-item" data-go="sec-copy"><span class="n">3</span><span class="lb"><small class="pt">Part 3</small>Copy prompts<small class="pg" id="trk-pg"></small></span></button></li>
+      <li><button type="button" class="trk-item" data-go="sec-pdf"><span class="n">4</span><span class="lb"><small class="pt">Part 4</small>Download PDF</span></button></li>
+    </ol>
+    <span class="trk-save" id="trk-save" aria-live="polite"></span>
+  </div>
+  <div class="wrap nxwrap"><div class="next on" id="next" data-next="1" aria-live="polite"></div></div>
+</nav>
+
+<main class="wrap">
+  <section class="sec" id="sec-pick" data-sec="1">
+    <h2 class="sec-h"><span class="sn">Part 1</span>Pick a client</h2>
+    <p class="sec-sub">Open an example to see a finished audit, or start your own. A client is the business you are auditing.</p>
+    <div class="presets rise" role="group" aria-label="Start from a preset" id="presets">
+      <button type="button" data-preset="pune" aria-pressed="true">Pune dental clinic (example)</button>
+      <button type="button" data-preset="sf" aria-pressed="false">San Francisco dental clinic (example)</button>
+      <button type="button" data-preset="blank" aria-pressed="false">+ New client</button>
+    </div>
+    <div class="savebar"><span><i class="dot" aria-hidden="true"></i><span id="save-text"></span></span><button type="button" class="btn btn--sm btn--ghost" id="start-fresh">Start fresh</button></div>
+    <div id="homework"></div>
+  </section>
+
+  <section class="sec" id="sec-fill" data-sec="2">
+    <h2 class="sec-h"><span class="sn">Part 2</span>Fill in what the owner told you</h2>
+    <p class="sec-sub">The result on the right updates as you type. Leave a box blank if you do not know: we use a sensible default and mark it est, which means our estimate.</p>
+    <div class="layout">
+      <form class="col-form" id="form" autocomplete="off" onsubmit="return false">
+        <div id="iv"></div>
+
+        <div class="card">
+          <span class="tag">About the business</span>
+          <h2>Client</h2>
+          <p class="sub">From the pre-call form and the first two minutes. The client is the business you are auditing.</p>
+          <div class="grid g2 stack-s">
+            <div class="f"><label for="c-name">Business name</label><input type="text" id="c-name" data-k="client.name"></div>
+            <div class="f"><label for="c-owner">Owner name</label><input type="text" id="c-owner" data-k="client.owner"></div>
+            <div class="f"><label for="c-city">City</label><input type="text" id="c-city" data-k="client.city"></div>
+            <div class="f"><label for="c-ind">Industry</label><input type="text" id="c-ind" data-k="client.industry"></div>
+            <div class="f"><label for="c-staff">How many staff</label><input type="number" inputmode="numeric" min="0" step="1" id="c-staff" data-k="client.staff"></div>
+            <div class="f span"><label for="c-web">Website</label><input type="url" id="c-web" data-k="client.website" placeholder="https://"></div>
+            <div class="f span"><label for="c-li">Owner LinkedIn <small>(for Prompt 1)</small></label><input type="url" id="c-li" data-k="client.linkedin" placeholder="https://www.linkedin.com/in/"></div>
+            <div class="f span"><label for="c-builds">What your agency builds <small>(for Prompt 1)</small></label><input type="text" id="c-builds" data-k="client.builds"></div>
+            <div class="f"><label for="c-me">Your name <small>(signs the recap email)</small></label><input type="text" id="c-me" data-k="client.me"></div>
+            <div class="f"><label for="c-tier">Tier <small class="hn">audit size and price</small></label>
+              <select id="c-tier" data-k="tier"><option value="auto">Pick for me</option><option value="Focused">Focused</option><option value="Standard">Standard</option><option value="Deep">Deep</option></select></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <span class="tag">The problems</span>
+          <h2>Workflows</h2>
+          <p class="sub">A workflow is a job that repeats, like answering calls. One row per problem the owner described. Leave a number blank if they did not give it: the row is marked est (our estimate).</p>
+          <div class="grid" id="rows"></div>
+          <button type="button" class="btn add" id="add-row">+ Add a workflow</button>
+        </div>
+
+        <div class="card">
+          <span class="tag">Optional</span>
+          <h2>Lost leads</h2>
+          <p class="sub">Calls and enquiries that never got an answer. Priced as missed leads a month × close rate × average sale × 12.</p>
+          <div class="grid g3">
+            <div class="f"><label for="l-miss">Missed leads a month</label><input type="number" inputmode="decimal" min="0" step="any" id="l-miss" data-k="leads.missed"></div>
+            <div class="f"><label for="l-close">Close rate %</label><input type="number" inputmode="decimal" min="0" max="100" step="any" id="l-close" data-k="leads.close"></div>
+            <div class="f"><label for="l-avg">Average sale</label><input type="number" inputmode="decimal" min="0" step="any" id="l-avg" data-k="leads.avg"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <span class="tag">What they said</span>
+          <h2>Call notes</h2>
+          <p class="sub">Paste your notes or the transcript. They go into the client data the AI reads.</p>
+          <div class="f"><label class="sr" for="notes">Call notes</label><textarea id="notes" rows="9" data-k="notes"></textarea></div>
+        </div>
+      </form>
+
+      <aside class="col-result" aria-label="Live result"><div class="res" id="result"></div></aside>
+    </div>
+  </section>
+
+  <section class="sec" id="sec-copy" data-sec="3">
+    <h2 class="sec-h"><span class="sn">Part 3</span>Copy the prompts into ChatGPT or Claude</h2>
+    <p class="sec-sub">Do not paste all nine at once. Prompts 1 and 2 are for the free call. Prompt 3 is day 1 of the audit. Prompts 4 and 5 are once for each person you interview. Prompts 6 to 9 come after the interviews. Open one chat. Copy "Client data" first and send it. The AI replies "Ready". Then copy each prompt, one at a time, in the same chat.</p>
+    <label class="own" for="own"><input type="checkbox" id="own"><div><b>Using a new chat for each prompt?</b><span>Leave this off if you use one chat. Turn it on if each prompt goes into a fresh chat: it adds the client data to the top of every prompt so each one works on its own.</span></div></label>
+    <ol class="path" id="prompts"></ol>
+    <p class="note-gold">AI drafts. You check. Read every number against your notes and edit before anything goes to the client.</p>
+    <div class="exp">
+      <button type="button" class="btn btn--gold" id="copy-all">Copy all prompts</button>
+      <button type="button" class="btn" id="dl-md">Download .md</button>
+    </div>
+  </section>
+
+  <section class="sec" id="sec-pdf" data-sec="4">
+    <h2 class="sec-h"><span class="sn">Part 4</span>Download the PDF for your client</h2>
+    <p class="sec-sub">A clean summary on white: cover, workflow costs, the matrix, the order to do things, the fee, and what each score means.</p>
+    <div class="pdfbox">
+      <button type="button" class="btn btn--gold" id="pdf">Download PDF</button>
+      <p>Your browser's print window opens. Choose "Save as PDF" as the destination. Read every number against your notes first.</p>
+    </div>
+  </section>
+
+  <section class="block how-sec" id="how">
+    <h2>How the prompts work</h2>
+    <p class="sub">One line per prompt.</p>
+    <ol class="howlist" id="howlist"></ol>
+  </section>
+
+  <section class="block faq-sec" id="faq">
+    <h2>Questions people ask</h2>
+    <div class="faq" id="faq-list" style="margin-top:22px">
+      <details><summary>I'm new and have no case studies. Why would anyone pay me for an audit?</summary><p>Run your first two audits at the Focused price for businesses you can reach easily: a relative's shop, a past employer. Ask each one for a written line about what you found, with the number in it. On the free call they already see you work with their own numbers, before they pay anything. That's most of the proof they need.</p></details>
+      <details><summary>What if the owner doesn't know their numbers, or won't share them?</summary><p>They almost never know the yearly cost. They do know how often something happens and roughly how long it takes. Ask for a rough count and a rough time, and mark it est. If they won't give you even that, it's a red flag and the audit isn't the next step.</p></details>
+      <details><summary>What if they take my report and build it with someone cheaper?</summary><p>Some will. You were still paid for the audit, so you didn't work for free. Most won't, because you already know the business and the fee comes off if they build with you within 30 days. Don't hold back the report to stop this. An audit they can't keep is one they won't buy.</p></details>
+      <details><summary>Indian owners expect consulting for free. Will anyone pay ₹30,000?</summary><p>The call is free. The audit is measured work with a report they keep, not a chat. Show them the yearly cost from the call first, then the price. Right after you've shown a problem costs ₹1,44,000 a year, ₹30,000 for the plan is easy to say yes to. If they still want it free, they're not your client yet.</p></details>
+      <details><summary>What if the audit finds less than 3x the fee?</summary><p>If you offered the guarantee, refund it. You keep the trust and often the referral. That's why you only offer the guarantee once you've run a few audits. Better still, don't sell the audit when the call didn't turn up at least one workflow worth more than the fee.</p></details>
+    </div>
+  </section>
+
+  <div class="closing"><p>We built this for you. <em>Open it on your next call</em> and use it from tomorrow.</p></div>
+</main>
+
+<dialog class="dlg" id="dlg" aria-labelledby="dlg-msg">
+  <form method="dialog">
+    <p id="dlg-msg"></p>
+    <div class="row"><button type="submit" value="cancel" class="btn" id="dlg-cancel" autofocus>Cancel</button><button type="submit" value="ok" class="btn btn--gold" id="dlg-ok">OK</button></div>
+  </form>
+</dialog>
+
+<div id="printdoc" aria-hidden="true"></div>
+
+<script>
+(function () {
+'use strict';
+var KIT = {
+ "promptA": "You are a senior AI consultant preparing for a 30-minute discovery call with a business owner. Your job is to help me walk in knowing their business, with smart hypotheses, and without a pitch.\n\nInputs\nCompany website: {{website}}\nProspect LinkedIn: {{linkedin}}\nMy niche: {{niche}}\nWhat my agency builds: {{builds}}\n\nRules\nOnly state facts you can see in the sources. If you cannot verify something, write \"unknown\". Do not guess revenue or headcount unless the source says it, and label any estimate as an estimate.\n\nOutput\n1. Company snapshot: what they sell, who to, size signals, locations, tools you can spot on the site (booking widget, chat, forms, CRM traces).\n2. Prospect snapshot: role, how long in role, what they post or care about.\n3. Industry context: the three most common time and money drains in this industry, and how far along this industry usually is with AI.\n4. Three hypotheses. For each: the likely problem, the evidence you saw, and what type of AI solution might fit. Mark each as low, medium or high confidence.\n5. One specific observation I can mention in the first two minutes to show I did my homework.\n6. Eight discovery questions tailored to this business, ordered from easiest to most revealing. Include a follow-up for each that gets a number (time, volume, people or cost).\n7. Likely objections to a paid audit and a one-line answer for each.\n8. Red flags to watch for on this call.\nKeep it to what I can read in five minutes. Plain English.",
+ "promptB": "You are a senior AI consultant. Below is the transcript of a 30-minute discovery call with a business owner. Analyse it and give me:\n1. Play-back summary: the top three problems in the owner's own words, with any numbers they gave (frequency, time, people, cost). Write \"not stated\" where a number is missing. Do not invent numbers.\n2. Scorecard rows: a table with these columns: Department, Workflow, Hours per week, People, Loaded cost per hour, Impact (1 to 5), Effort (1 to 5), AI Fit (1 to 5), Likely solution type. Mark anything you estimated with (est).\n3. Fit decision: one of (a) offer the AI Opportunity Audit and which tier (Focused, Standard or Deep), (b) skip the audit and propose a small fixed-price build, or (c) not a fit yet. Give three reasons.\n4. Missing information I should ask for in the follow-up.\n5. Recap email using the template I paste below, filled in with this call's details.\n\nTranscript:\n{{notes}}\n\nTemplate:\n{{recap}}",
+ "recap": "Subject: Recap of our call and next step\nHi [Name],\nThanks for walking me through [business] yesterday. Here's what I heard:\n1. [Problem 1, with their number]\n2. [Problem 2, with their number]\n3. [Problem 3]\nThe quick win we talked about: [quick win]. Worth doing this week whatever you decide.\nMy recommendation is an AI Opportunity Audit focused on [area]. In about two weeks you'll get a map of these workflows, a dollar value on each one, a ranked list of what to automate first and build options with prices. The investment is [price]. If you decide to build with us within 30 days of the readout, the full fee comes off the build.\nI've attached an overview of the audit. If it looks right, reply \"go\" and I'll send the agreement and book the kickoff.\n[Your name]",
+ "defaults": {
+  "website": "[URL]",
+  "linkedin": "[URL]",
+  "niche": "[e.g. dental clinics, law firms, real estate teams]",
+  "builds": "[e.g. AI chatbots, voice agents, workflow automations, custom AI apps, multi-agent systems, AI training]",
+  "notes": "[paste]",
+  "recap": "[paste the recap email template]"
+ }
+};
+var WEEKS = 48, BACK = 0.7;
+var RATES = { INR: { Staff: 250, Owner: 1000 }, USD: { Staff: 35, Owner: 100 } };
+function curKey(c) { return c === 'INR' ? 'INR' : 'USD'; }
+function defRate(cur, who) { return RATES[curKey(cur)][who === 'Owner' ? 'Owner' : 'Staff']; }
+function isDefaultOwnerRate(r, cur) { return r.who === 'Owner' && (isBlank(r.rate) || String(r.rate) === String(RATES[curKey(cur)].Owner)); }
+function isReady(r) { return !isBlank(r.often) && !isBlank(r.minutes) && !isBlank(r.people); }
+function applyWho(r, who, cur) {
+  var k = curKey(cur), prev = r.who;
+  r.who = who;
+  var rs = String(r.rate);
+  if (prev !== who && (rs === String(RATES[k].Staff) || rs === String(RATES[k].Owner))) r.rate = '';
+  if (who === 'Owner' && !isBlank(r.sal)) { r.sal = ''; r.rate = ''; }
+  return r;
+}
+function rateFromSalary(salary, days, hours) {
+  var s = Number(salary), d = Number(days), h = Number(hours);
+  if (!(s > 0) || !(d > 0) || !(h > 0)) return null;
+  return s * 1.3 / (d * h);
+}
+var FEES = { USD: { Focused: 1500, Standard: 3000, Deep: 5000 }, INR: { Focused: 30000, Standard: 60000, Deep: 100000 } };
+var BOXES = { win: 'Quick Win', swing: 'Big Swing', fill: 'Fill-In', not: 'Not Now' };
+/* ---------- presets ---------- */
+var uid = 0;
+function row(o) { o.id = 'r' + (++uid); return o; }
+var PUNE_TRANSCRIPT =
+  "See, mostly it is the phone only. My receptionist Meena is on calls all day for appointments, I would say sixty calls a week, and each call takes twelve minutes by the time she checks the diary and confirms with the patient. " +
+  "Meena works six days a week, nine to six, and I pay her eighteen thousand a month. " +
+  "Then in the evenings, same Meena sends WhatsApp reminders by hand. Roughly twenty-five patients a day, six days, and it takes about two minutes each, typing and copy-paste. " +
+  "Insurance is the real headache. TPA paperwork, maybe ten claims a week, each one takes forty-five minutes. Nobody else touches it, I do it myself in the evenings after the clinic closes. " +
+  "And the calls after seven, nobody picks up. Maybe twenty calls a month we miss. One in four of those would have booked, I think. A new patient spends around six thousand with us. I never counted properly, but that is what I feel.";
+var SF_INTERVIEW =
+  "Maria: Mostly it's the phone. I'm on it all day, booking, moving and confirming appointments. Last week I'd say sixty calls, and each one takes about twelve minutes by the time I check the schedule and call the patient back to confirm. " +
+  "Then the insurance checks. Every new patient and a lot of the recalls, I log into the payer portal and check eligibility by hand. About forty a week, ten minutes each, and the portals time out on me. " +
+  "Recall calls are ninety a week, four minutes each, and half go to voicemail so I try again later. " +
+  "If I could hand off one thing tomorrow, it would be the insurance checks.";
+var SAL0 = function () { return { s: '', d: '', h: '' }; };
+
+var PRESETS = {
+  sf: function () { return {
+    client: { name: 'Bright Smile Dental', owner: 'Dr. Alvarez', city: 'San Francisco', industry: 'dental clinic', staff: '14', website: 'https://www.brightsmiledental.example', linkedin: 'https://www.linkedin.com/in/dr-alvarez-example', builds: 'AI chatbots, voice agents and workflow automations', me: 'Alex', currency: 'USD' },
+    tier: 'auto',
+    rows: [
+      row({ name: 'Front desk scheduling', often: '60', minutes: '12', people: '1', rate: '35', impact: '4', effort: '2', fit: '5', note: 'Maria is on the phone all day booking and rescheduling.' }),
+      row({ name: 'Insurance eligibility checks', often: '40', minutes: '10', people: '1', rate: '32', impact: '4', effort: '4', fit: '4', note: 'We check every new patient by hand on the payer portals.' }),
+      row({ name: 'Recall and reminder calls', often: '90', minutes: '4', people: '1', rate: '30', impact: '3', effort: '2', fit: '5', note: 'About half go to voicemail, then we call again.' }),
+      row({ name: 'Treatment-plan follow-ups', often: '15', minutes: '20', people: '2', rate: '45', impact: '4', effort: '3', fit: '2', note: 'Patient says let me think, then nobody follows up properly.' })
+    ],
+    leads: { missed: '12', close: '45', avg: '1100' },
+    sal: SAL0(),
+    notes: "Dr. Alvarez: Honestly the phones are killing us. Maria at the front desk is booking and rescheduling all day, I'd say sixty calls a week, ten, twelve minutes each with the back and forth.\n\nInsurance verification is another one. We check eligibility by hand on the portals before every new patient and a lot of recalls, maybe forty a week, ten minutes each.\n\nRecall calls, that's about ninety a week, four minutes each, and half go to voicemail.\n\nTreatment plans: we present them, the patient says let me think, and nobody follows up properly. Fifteen a week, I'd say, and it takes my coordinator and the hygienist twenty minutes each.\n\nAnd we miss maybe a dozen new patient calls a month when the desk is busy. I don't know how many we actually lose."
+  }; },
+  pune: function () { return {
+    client: { name: 'Smile Square Dental Clinic', owner: 'Dr. Kulkarni', city: 'Pune', industry: 'dental clinic', staff: '9', website: 'https://www.smilesquare.example', linkedin: 'https://www.linkedin.com/in/dr-kulkarni-example', builds: 'AI chatbots, voice agents and workflow automations', me: 'Ananya', currency: 'INR' },
+    tier: 'auto',
+    rows: [
+      row({ name: 'Appointment calls', who: 'Staff', often: '60', minutes: '12', people: '1', sal: '18000', rate: '100', impact: '4', effort: '2', fit: '5', note: 'Meena is on calls all day for appointments.' }),
+      row({ name: 'WhatsApp reminders', who: 'Staff', often: '150', minutes: '2', people: '1', sal: '18000', rate: '100', impact: '3', effort: '1', fit: '5', note: 'Same Meena sends reminders by hand in the evenings.' }),
+      row({ name: 'Insurance and TPA paperwork', who: 'Owner', often: '10', minutes: '45', people: '1', rate: '1000', impact: '4', effort: '4', fit: '3', note: 'The real headache. Dr. Kulkarni does it herself in the evenings.' })
+    ],
+    leads: { missed: '20', close: '25', avg: '6000' },
+    sal: { s: '18000', d: '26', h: '9' },
+    notes: "Free call with Dr. Kulkarni, Smile Square Dental Clinic, Pune. Three pains. One: appointment calls, Meena is on the phone all day, about 60 calls a week at 12 minutes each. Two: WhatsApp reminders sent by hand in the evening, about 25 a day for 6 days at 2 minutes each. Three: insurance and TPA paperwork, about 10 claims a week at 45 minutes each, done by Dr. Kulkarni herself after the clinic closes. Meena earns 18,000 rupees a month, works 6 days a week, 9 hours a day. About 20 calls a month go unanswered after 7pm; she thinks 1 in 4 would have booked, and a new patient is worth about 6,000 rupees."
+  }; },
+  blank: function () { return {
+    client: { name: '', owner: '', city: '', industry: '', staff: '', website: '', linkedin: '', builds: '', me: '', currency: 'INR' },
+    tier: 'auto',
+    rows: [ row({ name: '', often: '', minutes: '', people: '', sal: '', rate: '', impact: '', effort: '', fit: '', note: '' }) ],
+    leads: { missed: '', close: '', avg: '' },
+    sal: SAL0(),
+    notes: ''
+  }; }
+};
+
+var EXTRAS = {
+  sf: function () { return { role: 'Front desk coordinator (Maria)', roleDoes: 'Books, confirms and reschedules appointments by phone all day, and checks insurance on the payer portals.', interview: SF_INTERVIEW, option: 'A' }; },
+  pune: function () { return { role: 'Owner and dentist (Dr. Kulkarni)', roleDoes: 'Runs the clinic, does the TPA insurance paperwork herself in the evenings, and sees how the front desk spends its day.', interview: PUNE_TRANSCRIPT, option: 'A' }; },
+  blank: function () { return { role: '', roleDoes: '', interview: '', option: 'A' }; }
+};
+var state = null, presetName = 'sf';
+
+
+/* ---------- pure maths (the deck's rules) ---------- */
+function isBlank(v) { return v === '' || v === null || v === undefined || isNaN(Number(v)) || Number(v) <= 0; }
+function num(v) { return isBlank(v) ? 0 : Number(v); }
+function rateFromPay(p) { var n = Number(p); return n > 0 ? n * 1.3 / (26 * 9) : null; }
+function pct(v) { return Math.min(100, num(v)); }
+function validScore(v) { var n = Number(v); return v !== '' && v !== null && !isNaN(n) && n >= 1 && n <= 5; }
+function priority(i, e, f) { return Number(i) * 2 + Number(f) + (6 - Number(e)); }
+function boxOf(i, e) {
+  i = Number(i); e = Number(e);
+  if (i >= 3) return e <= 3 ? 'win' : 'swing';
+  return e <= 3 ? 'fill' : 'not';
+}
+function calcRow(r, cur) {
+  var ready = isReady(r);
+  var rateBlank = isBlank(r.rate);
+  var rateUsed = rateBlank ? defRate(cur, r.who) : Number(r.rate);
+  var est = [r.often, r.minutes, r.people, r.rate].some(isBlank) || isDefaultOwnerRate(r, cur);
+  var hrs = ready ? num(r.often) * num(r.minutes) * num(r.people) / 60 : 0;
+  var yearly = ready ? hrs * rateUsed * WEEKS : 0;
+  var back = yearly * BACK;
+  var scored = validScore(r.impact) && validScore(r.effort) && validScore(r.fit);
+  var out = { id: r.id, name: r.name || 'Untitled workflow', note: r.note || '', est: est, ready: ready, rateUsed: rateUsed, rateDefault: rateBlank, hrs: hrs, yearly: yearly, back: back, scored: scored, priority: null, box: null, fix: false, impact: r.impact, effort: r.effort, fit: r.fit };
+  if (scored) {
+    out.priority = priority(r.impact, r.effort, r.fit);
+    out.box = boxOf(r.impact, r.effort);
+    out.fix = Number(r.fit) <= 2;
+  }
+  return out;
+}
+function tierFor(staff) {
+  if (isBlank(staff) || staff === '') return null;
+  var s = Number(staff);
+  if (s <= 15) return 'Focused';
+  if (s <= 50) return 'Standard';
+  return 'Deep';
+}
+function compute(st) {
+  var cur = st.client.currency;
+  var rows = st.rows.map(function (r) { return calcRow(r, cur); });
+  var ranked = rows.slice().sort(function (a, b) {
+    if (a.scored !== b.scored) return a.scored ? -1 : 1;
+    if (a.priority !== b.priority) return (b.priority || 0) - (a.priority || 0);
+    return b.yearly - a.yearly;
+  });
+  var hrs = 0, yearly = 0, back = 0;
+  rows.forEach(function (r) { hrs += r.hrs; yearly += r.yearly; back += r.back; });
+  var hasData = rows.some(function (r) { return r.ready; });
+  var l = st.leads;
+  var leadsYear = num(l.missed) * (pct(l.close) / 100) * num(l.avg) * 12;
+  var suggested = tierFor(st.client.staff);
+  var tier = st.tier === 'auto' ? suggested : st.tier;
+  var fees = FEES[cur];
+  var fee = tier ? fees[tier] : null;
+  var passes = {};
+  Object.keys(fees).forEach(function (t) { passes[t] = hasData && Math.round(back) >= 3 * fees[t]; });
+  var matrix = { win: [], swing: [], fill: [], not: [], fix: [], unscored: [] };
+  rows.forEach(function (r) {
+    if (!r.scored) matrix.unscored.push(r);
+    else if (r.fix) matrix.fix.push(r);
+    else matrix[r.box].push(r);
+  });
+  return { hasData: hasData, cur: cur, rows: rows, ranked: ranked, hrs: hrs, yearly: yearly, back: back, leadsYear: leadsYear, hasLeads: leadsYear > 0, suggested: suggested, tier: tier, fee: fee, passes: passes, pass: fee !== null && hasData ? Math.round(back) >= 3 * fee : null, matrix: matrix };
+}
+
+/* ---------- formatting ---------- */
+function money(n, cur) {
+  var sym = cur === 'INR' ? '₹' : '$';
+  var loc = cur === 'INR' ? 'en-IN' : 'en-US';
+  return sym + new Intl.NumberFormat(loc, { maximumFractionDigits: 0 }).format(Math.round(n));
+}
+function hrsFmt(h) { return (Math.round(h * 10) / 10).toLocaleString('en-US', { maximumFractionDigits: 1 }); }
+function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+function badgeFor(r) {
+  if (!r.scored) return '<span class="badge b-fill">Needs scores</span>';
+  if (r.fix) return '<span class="badge b-fix">Fix the process first</span>';
+  return '<span class="badge b-' + r.box + '">' + BOXES[r.box] + '</span>';
+}
+function boxText(r) {
+  if (!r.scored) return 'Needs scores';
+  if (r.fix) return 'Fix the process first (box: ' + BOXES[r.box] + ')';
+  return BOXES[r.box];
+}
+
+/* ---------- prompts ---------- */
+function fillKit(tpl, map) {
+  return tpl.replace(/\{\{(\w+)\}\}/g, function (_, k) { var v = (map[k] && String(map[k]).trim()) ? String(map[k]).trim() : KIT.defaults[k]; return v; });
+}
+function recapFilled(c, price) {
+  var t = KIT.recap;
+  function put(slot, val) { t = t.split(slot).join(val); }
+  put('[Name]', c.owner && c.owner.trim() ? c.owner.trim() : '(the owner\'s first name, from the client data)');
+  put('[business]', c.name && c.name.trim() ? c.name.trim() : '(the business name, from the client data)');
+  put('[price]', price ? price : '(the audit fee for the tier, from the client data)');
+  put('[Problem 1, with their number]', '(write their top problem and its yearly cost here)');
+  put('[Problem 2, with their number]', '(write their second problem and its yearly cost here)');
+  put('[Problem 3]', '(write their third problem here)');
+  put('[quick win]', '(write the quick win from the call here)');
+  put('[area]', '(write the area the audit should focus on here)');
+  put('a dollar value on each one', 'a ' + (c.currency === 'INR' ? 'rupee' : 'dollar') + ' value on each one');
+  put('[Your name]', c.me && c.me.trim() ? c.me.trim() : '(your name)');
+  return t;
+}
+function promptA(st) {
+  var c = st.client;
+  return fillKit(KIT.promptA, { website: c.website, linkedin: c.linkedin, niche: c.industry, builds: c.builds });
+}
+function promptB(st, res) {
+  var c = st.client;
+  var price = res.fee !== null ? money(res.fee, res.cur) : '';
+  return fillKit(KIT.promptB, { notes: st.notes, recap: recapFilled(c, price) });
+}
+function tableMd(res) {
+  var cur = res.cur;
+  var head = '| Workflow | Who | Per week | Min each | People | Cost/hr | Hrs/wk | Cost a year | 70% back | I | E | Fit | Priority | Box |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|---|';
+  var lines = res.ranked.map(function (r) {
+    var raw = st_rowById(r.id);
+    var rateTxt = r.rateDefault ? money(r.rateUsed, cur) + ' (default' + (raw.who === 'Owner' ? ', FWAI estimate' : '') + ')' : money(raw.rate, cur) + (isDefaultOwnerRate(raw, cur) ? ' (FWAI estimate)' : '');
+    var nums = r.ready ? hrsFmt(r.hrs) + ' | ' + money(r.yearly, cur) + (r.est ? ' (est)' : '') + ' | ' + money(r.back, cur) + (r.est ? ' (est)' : '') : 'unknown | unknown | unknown';
+    return '| ' + String(r.name).replace(/\|/g, '/') + (r.est ? ' (est)' : '') + ' | ' + (raw.who || 'Staff') + ' | ' + (raw.often || 'unknown') + ' | ' + (raw.minutes || 'unknown') + ' | ' + (raw.people || 'unknown') + ' | ' + rateTxt + ' | ' + nums + ' | ' + (raw.impact || '-') + ' | ' + (raw.effort || '-') + ' | ' + (raw.fit || '-') + ' | ' + (r.priority === null ? '-' : r.priority + '/20') + ' | ' + boxText(r) + ' |';
+  });
+  return head + '\n' + lines.join('\n');
+}
+function st_rowById(id) { for (var i = 0; i < state.rows.length; i++) if (state.rows[i].id === id) return state.rows[i]; return {}; }
+function matrixLines(res) {
+  var cur = res.cur, m = res.matrix;
+  function line(label, arr) {
+    var s = arr.reduce(function (a, r) { return a + r.back; }, 0), any = arr.some(function (r) { return r.ready; });
+    return '- ' + label + ': ' + (arr.length ? arr.map(function (r) { return r.name; }).join('; ') : 'none') + (arr.length && any ? ' (yearly savings at 70%: ' + money(s, cur) + ')' : '');
+  }
+  return [
+    line('Quick Wins (Impact 3+, Effort 1 to 3)', m.win),
+    line('Big Swings (Impact 3+, Effort 4 to 5)', m.swing),
+    line('Fill-Ins (Impact 1 to 2, Effort 1 to 3)', m.fill),
+    line('Not Now (Impact 1 to 2, Effort 4 to 5)', m.not),
+    line('Fix the process first (AI Fit 1 or 2, whatever the box)', m.fix)
+  ].concat(m.unscored.length ? ['- Not scored yet: ' + m.unscored.map(function (r) { return r.name; }).join('; ')] : []).join('\n');
+}
+function roadmapLines(res) {
+  var m = res.matrix;
+  function byP(a, b) { return (b.priority || 0) - (a.priority || 0); }
+  var wins = m.win.slice().sort(byP), swings = m.swing.slice().sort(byP), fills = m.fill.slice().sort(byP);
+  function nm(r) { return r ? r.name : null; }
+  var d1 = nm(wins[0]) || nm(fills[0]) || nm(swings[0]);
+  var d2 = nm(wins[1]) || nm(fills[0] && wins[0] ? fills[0] : null);
+  var d3 = nm(swings[0]);
+  var out = [];
+  out.push('- Days 1 to 30: ' + (d1 ? d1 + ' built and live, team trained.' : 'no scored workflow yet.'));
+  out.push('- Days 31 to 60: ' + (d2 ? d2 + '.' : 'next Quick Win or Fill-In if any.') + (d3 ? ' Data and process preparation for ' + d3 + '.' : ''));
+  out.push('- Days 61 to 90: ' + (d3 ? d3 + ', phase 1.' : 'to be set once a Big Swing is scored.'));
+  if (m.fix.length) out.push('- Process fixes to schedule first: ' + m.fix.map(function (r) { return r.name; }).join('; ') + '.');
+  return out.join('\n');
+}
+function totalsLines(res) {
+  var cur = res.cur;
+  var a = [
+    '- Workflows mapped: ' + res.rows.length,
+    '- Hours a week on these workflows: ' + (res.hasData ? hrsFmt(res.hrs) : 'unknown, the numbers are not filled in yet'),
+    '- Yearly cost of the mapped work: ' + (res.hasData ? money(res.yearly, cur) : 'unknown'),
+    '- Yearly savings at 70%: ' + (res.hasData ? money(res.back, cur) : 'unknown')
+  ];
+  if (res.hasLeads) {
+    var l = state.leads;
+    a.push('- Lost leads a year: ' + money(res.leadsYear, cur) + ' (' + l.missed + ' missed a month x ' + l.close + '% close rate x ' + money(num(l.avg), cur) + ' average sale x 12)');
+  } else a.push('- Lost leads: not entered');
+  return a.join('\n');
+}
+function tierLines(res) {
+  var cur = res.cur;
+  if (!res.tier) return '- Tier: enter the staff count first';
+  return [
+    '- Tier: ' + res.tier + ' (' + (state.tier === 'auto' ? 'suggested by staff count' : 'chosen') + '), fee ' + money(res.fee, cur),
+    '- Fee credit: if the client builds within 30 days of the readout, the full fee of ' + money(res.fee, cur) + ' comes off the build.',
+    (res.hasData ? '- 3x check: yearly savings at 70% of ' + money(res.back, cur) + ' against 3 x fee of ' + money(res.fee * 3, cur) + ': ' + (res.pass ? 'yes' : 'no') : '- 3x check: waiting for numbers')
+  ].join('\n');
+}
+function clientLines(st) {
+  var c = st.client;
+  function v(x) { return x && String(x).trim() ? String(x).trim() : 'not stated'; }
+  return [
+    '- Business: ' + v(c.name),
+    '- Owner: ' + v(c.owner),
+    '- City: ' + v(c.city),
+    '- Industry: ' + v(c.industry),
+    '- Staff: ' + v(c.staff),
+    '- Website: ' + v(c.website),
+    '- Currency: ' + (c.currency === 'INR' ? 'Indian rupees' : 'US dollars')
+  ].join('\n');
+}
+function workflowNotes(res) {
+  var out = res.ranked.filter(function (r) { return r.note; }).map(function (r) { return '- ' + r.name + ': "' + r.note + '"'; });
+  return out.length ? out.join('\n') : '- none entered';
+}
+
+/* ---------- prompts: client data first, then nine prompts ---------- */
+var INTRO = 'Here is the data for a client audit. Read it and reply only "Ready". I\'ll send nine prompts one by one. Use only these numbers; if something is missing, say "unknown".';
+var USING = 'Using the client data I gave you above, ';
+function rules(extra) {
+  return ['Rules',
+    '- Use only the numbers in the client data. Do not invent, round up or add any figure.',
+    '- Mark anything estimated with (est). A field marked "est": true is an estimate.',
+    '- If something is missing or null, write "unknown". Do not fill it in.'].concat(extra || []).join('\n');
+}
+function ph(v, fallback) { return v && String(v).trim() ? String(v).trim() : fallback; }
+function bizName(st) { return ph(st.client.name, '[Client Name]'); }
+var OPTIONS = { A: 'Option A: Quick Wins', B: 'Option B: Quick Wins + Big Swing', C: 'Option C: Full roadmap' };
+
+function rowOf(st, id) { for (var i = 0; i < st.rows.length; i++) if (st.rows[i].id === id) return st.rows[i]; return {}; }
+function nn(v) { return isBlank(v) ? null : Number(v); }
+function tx(v) { return v && String(v).trim() ? String(v).trim() : null; }
+function r1(n) { return Math.round(n * 10) / 10; }
+function dataObj(st, res) {
+  var c = st.client, x = st.extra || {}, l = st.leads, cur = res.cur, m = res.matrix;
+  function names(a) { return a.map(function (r) { return r.name; }); }
+  var ranked = res.ranked.map(function (r, i) {
+    var raw = rowOf(st, r.id);
+    var src = r.rateDefault ? (raw.who === 'Owner' ? 'default, FWAI estimate' : 'default') : (isDefaultOwnerRate(raw, cur) ? 'FWAI estimate' : (rateFromPay(raw.sal) !== null ? 'worked out from monthly pay of ' + raw.sal : 'entered'));
+    return { rank: i + 1, name: r.name, doneBy: raw.who === 'Owner' ? 'Owner' : 'Staff', timesPerWeek: nn(raw.often), minutesEach: nn(raw.minutes), people: nn(raw.people),
+      costPerHour: r.rateUsed, costPerHourSource: src, hoursPerWeek: r.ready ? r1(r.hrs) : null, costPerYear: r.ready ? Math.round(r.yearly) : null, savingsPerYearAt70: r.ready ? Math.round(r.back) : null,
+      impact: nn(raw.impact), effort: nn(raw.effort), aiFit: nn(raw.fit), priority: r.priority, box: r.scored ? BOXES[r.box] : null, fixProcessFirst: !!r.fix,
+      ownersWords: tx(r.note), est: !!r.est };
+  });
+  var cnt = res.rows.filter(function (r) { return r.ready; }).length;
+  var fee = res.fee;
+  return {
+    currency: cur === 'INR' ? 'INR (Indian rupees, ₹)' : 'USD (US dollars, $)',
+    client: { business: tx(c.name), owner: tx(c.owner), city: tx(c.city), industry: tx(c.industry), staff: nn(c.staff), website: tx(c.website), ownerLinkedin: tx(c.linkedin), agencyBuilds: tx(c.builds), consultantName: tx(c.me) },
+    howCalculated: [
+      'hoursPerWeek = timesPerWeek x minutesEach x people / 60',
+      'costPerYear = hoursPerWeek x costPerHour x 48 working weeks; savingsPerYearAt70 = costPerYear x 0.7',
+      'priority = impact x 2 + aiFit + (6 - effort), maximum 20; aiFit of 1 or 2 means fix the process first',
+      'lostLeads.lostPerYear = missedPerMonth x closeRatePercent / 100 x averageSale x 12'
+    ],
+    workflows: ranked,
+    lostLeads: { missedPerMonth: nn(l.missed), closeRatePercent: nn(l.close), averageSale: nn(l.avg), lostPerYear: res.hasLeads ? Math.round(res.leadsYear) : null },
+    totals: { workflowsListed: res.rows.length, workflowsWithNumbers: cnt, hoursPerWeek: res.hasData ? r1(res.hrs) : null, costPerYear: res.hasData ? Math.round(res.yearly) : null, savingsPerYearAt70: res.hasData ? Math.round(res.back) : null, lostLeadsPerYear: res.hasLeads ? Math.round(res.leadsYear) : null },
+    written: { costPerYear: res.hasData ? money(res.yearly, cur) : null, savingsPerYearAt70: res.hasData ? money(res.back, cur) : null, lostLeadsPerYear: res.hasLeads ? money(res.leadsYear, cur) : null, auditFee: fee !== null ? money(fee, cur) : null, threeTimesFee: fee !== null ? money(fee * 3, cur) : null },
+    matrix: { quickWins: names(m.win), bigSwings: names(m.swing), fillIns: names(m.fill), notNow: names(m.not), fixProcessFirst: names(m.fix), notScoredYet: names(m.unscored) },
+    suggestedRoadmapOrder: roadmapLines(res).split('\n').map(function (s) { return s.replace(/^- /, ''); }),
+    tier: { name: res.tier, chosenBy: st.tier === 'auto' ? 'staff count' : 'consultant', suggestedByStaffCount: res.suggested, auditFee: fee, feeCreditIfTheyBuildWithin30Days: fee, threeTimesFee: fee !== null ? fee * 3 : null, savingsPassThreeXCheck: res.hasData && fee !== null ? !!res.pass : null, threeXCheckNote: 'compares yearly savings at 70% only, not lost leads' },
+    callNotes: tx(st.notes),
+    interview: { person: tx(x.role), whatTheyDo: tx(x.roleDoes), transcript: tx(x.interview) },
+    proposalOption: OPTIONS[x.option] || OPTIONS.A
+  };
+}
+function pretty(o) {
+  var out = [];
+  Object.keys(o).forEach(function (k) {
+    var v = o[k], key = '  ' + JSON.stringify(k) + ': ';
+    if (Array.isArray(v)) out.push(key + (v.length ? '[\n' + v.map(function (i) { return '    ' + JSON.stringify(i); }).join(',\n') + '\n  ]' : '[]'));
+    else if (v && typeof v === 'object') out.push(key + '{\n' + Object.keys(v).map(function (kk) { return '    ' + JSON.stringify(kk) + ': ' + JSON.stringify(v[kk]); }).join(',\n') + '\n  }');
+    else out.push(key + JSON.stringify(v));
+  });
+  return '{\n' + out.join(',\n') + '\n}';
+}
+function dataJson(st, res) { return pretty(dataObj(st, res)); }
+function dataText(st, res) { return INTRO + '\n\n' + dataJson(st, res); }
+
+function promptKickoff(st, res) {
+  return [
+    USING + 'plan Day 1, the kickoff, of the 10-day AI Opportunity Audit for ' + bizName(st) + '. I am the consultant. Write it so I can run it.',
+    '',
+    rules(),
+    '',
+    'Give me four parts, with these headings:',
+    '1. Kickoff agenda (60 minutes): a table with the columns Minutes, Item, What I say, What I need from them. Cover their goals in their own words (use callNotes), scope, who we interview, tool and data access, the plan for Days 2 to 4 and Day 10, and what they must do this week.',
+    '2. Interview list: a table with the columns Order, Role, Why, Length, The one thing to learn. Include the person who does each workflow in the client data. Number of interviews by audit size: Focused 3 to 4, Standard 6 to 8, Deep 10 or more. Use tier.name.',
+    '3. Data and access to ask for: a bulleted list, one line each, saying what and why.',
+    '4. Three questions to confirm their goals before we start.',
+    '',
+    'Plain English. Nothing that promises a result. Under 700 words.'
+  ].join('\n');
+}
+function promptQuestions(st, res) {
+  var x = st.extra;
+  return [
+    USING + 'prepare me to interview one person for the AI Opportunity Audit at ' + bizName(st) + '.',
+    '',
+    'Person to interview: ' + ph(x.role, '[role name]'),
+    'What they do: ' + ph(x.roleDoes, '[what they do day to day]'),
+    '',
+    rules(['- No jargon. No question that suggests the answer.']),
+    '',
+    'Give me three parts, with these headings:',
+    '1. Opening line: three or four sentences I can read aloud, word for word. Say why we are talking, that it takes about 30 minutes, that we are looking at the work and not at the person, and that rough numbers are fine.',
+    '2. Questions: a table with the columns Number, Question, Follow-up if the answer is vague. Eight to twelve questions in plain words, easiest first. Build them around the four numbers: how often, how long each time, how many people, and what it costs (if they do not know, ask for the wage). Aim them at the workflows in the client data and add what happens when it goes wrong. Example follow-up: "It takes a while" gets "Roughly how long, each time?".',
+    '3. Closing question: one question. If you could hand off one task tomorrow, which would it be?',
+    '',
+    'Under 600 words.'
+  ].join('\n');
+}
+function promptInterview(st, res) {
+  var x = st.extra;
+  return [
+    USING + 'turn the interview below, with ' + ph(x.role, '[role name]') + ' at ' + bizName(st) + ', into workflow rows.',
+    '',
+    rules(['- Use only what is in the transcript below. If a number was not said, write "unknown".', '- Mark a number the person guessed or rounded with (est).', '- Quote the person exactly as they said it. Do not tidy their words.']),
+    '',
+    'Give me four parts, with these headings:',
+    '1. Workflow table: the columns Workflow, Who does it, Times a week, Minutes each, People, Cost an hour, Hours per week (times a week x minutes each x people / 60), Main pain.',
+    '2. Quotes: one or two exact quotes for each workflow.',
+    '3. What goes wrong and what it costs: lost leads, late work, unhappy clients. Only what was said.',
+    '4. Numbers still missing: a short list of follow-up questions I can send.',
+    '',
+    'Transcript:',
+    ph(x.interview, '[paste the interview transcript here]')
+  ].join('\n');
+}
+function promptReadiness(st, res) {
+  return [
+    USING + 'score the AI readiness of ' + bizName(st) + ' from the workflows, the owner\'s words and the call notes.',
+    '',
+    rules(['- Score a check only when the data shows evidence for it. Otherwise write "unknown", count it as 0 in the total, and add it to the questions list.']),
+    '',
+    'Method',
+    '- Six pillars: Data, Systems and tools, Process, People and skills, Leadership and budget, Risk and compliance.',
+    '- Four plain checks per pillar, each scored 0 to 3 (0 none, 1 weak, 2 partly, 3 solid). A pillar is out of 12. The overall score is out of 72.',
+    '- Overall level: 75% or more is Ready to build. 50 to 74% is Ready for quick wins first. Under 50% is Foundations first.',
+    '',
+    'Give me four parts, with these headings:',
+    '1. Scores: a table with the columns Pillar, Check, Score (0 to 3), Evidence from the data. Then a total per pillar, out of 12 and as a percentage.',
+    '2. Overall: the percentage and the level, with one honest line for each pillar.',
+    '3. What this means for the order of work, in two sentences.',
+    '4. Questions I still need to ask: one for each "unknown".',
+    '',
+    'Under 600 words apart from the tables.'
+  ].join('\n');
+}
+function promptRank(st, res) {
+  return [
+    USING + 'rank the opportunities for ' + bizName(st) + ' and plan the next 90 days.',
+    '',
+    rules(['- Impact, Effort and AI Fit are scored 1 to 5. Give a one-line reason for every score, using only the data. Challenge my scores if the data does not support them.', '- Build prices are not in the data. Write "to be quoted" for any build price.']),
+    '',
+    'Method',
+    '- Priority = Impact x 2 + AI Fit + (6 minus Effort), maximum 20.',
+    '- Box: Impact 3 or more and Effort 1 to 3 is a Quick Win. Impact 3 or more and Effort 4 to 5 is a Big Swing. Impact 1 to 2 and Effort 1 to 3 is a Fill-In. Impact 1 to 2 and Effort 4 to 5 is Not Now.',
+    '- Override: AI Fit 1 or 2 means Fix the process first, whatever the box.',
+    '',
+    'Give me four parts, with these headings:',
+    '1. Scores: a table with the columns Workflow, Impact, Effort, AI Fit, Priority, Box, Reason for the scores.',
+    '2. Opportunity Matrix: the workflows in each box, with the AI Fit override applied.',
+    '3. 90-day roadmap: a table with the columns Period (days 1 to 30, 31 to 60, 61 to 90), What happens, Result they should see.',
+    '4. Three build options, smallest to largest (Quick Wins; Quick Wins plus Big Swing; Full roadmap): a table with the columns Option, What is included, Timeline, Investment, Audit fee credit (take it from tier.auditFee), Yearly savings (from the data).',
+    '',
+    'Under 800 words apart from the tables.'
+  ].join('\n');
+}
+function promptReport(st, res) {
+  return [
+    USING + 'write the AI Opportunity Audit report for ' + bizName(st) + '. Write it for the owner' + (tx(st.client.owner) ? ', ' + st.client.owner.trim() : '') + ', in plain English. It is the report the client keeps, so make it client-ready.',
+    '',
+    rules(['- Anything marked (est) is an estimate from the owner\'s call. Keep the (est) label wherever you use it, and say once in section 10 that these are estimates.', '- Quote the owner\'s own words from callNotes and ownersWords where they help. Do not invent quotes.', '- Items under fixProcessFirst go in section 7, not in the recommendations.', '- Do not name tools or vendors unless they appear in the data.', '- Build prices are not in the data. Write "to be quoted" for any build price.']),
+    '',
+    'Format: clear headings, short paragraphs, tables for the workflow costs and the roadmap. No invented numbers. Something the owner can read in ten minutes.',
+    '',
+    'Write these sections, in this order',
+    '1. Executive summary: workflows mapped, hours a week, yearly cost, yearly savings, then what we found, what we recommend first, and what we recommend they do not do yet.',
+    '2. What we did: scope, interviews, tools reviewed, data shared, method. Write "not stated" where the data does not say.',
+    '3. Your goals: in the owner\'s own words from the call notes.',
+    '4. AI readiness: the data has no readiness score, so say it still needs scoring. Do not invent percentages.',
+    '5. How the work gets done today: a table with the columns Workflow, Who, Hours a week, Cost a year, Main pain.',
+    '6. Opportunities: the matrix, then a card for each of the top three to five. Each card: quadrant, the problem today, the numbers today (hours x rate x 48 weeks = cost a year), what we would build, expected impact (conservative), effort and timeline, risks, price range ("to be quoted").',
+    '7. Not now, and why: the Not Now items and the Fix the process first items, with what would need to change.',
+    '8. 90-day roadmap: a table with the columns Period, What happens, Result you should see. Use suggestedRoadmapOrder.',
+    '9. Build options: three options from smallest to largest, each showing the audit fee credit.',
+    '10. How we calculated the numbers: the formulas in howCalculated and the note that these are estimates.',
+    '11. Next steps: choose an option, proposal and agreement, kickoff.',
+    '',
+    'If you can create files, give me this as a PDF or Word document.'
+  ].join('\n');
+}
+function promptReadout(st, res) {
+  var opt = OPTIONS[st.extra.option] || OPTIONS.A;
+  return [
+    USING + 'prepare the Day 10 readout for ' + bizName(st) + '. It is 60 minutes with the decision makers. Write two things: (1) the script I will use and (2) the build proposal for the option they are most likely to choose.',
+    '',
+    'Option for the proposal: ' + opt,
+    '',
+    rules(['- Build prices are not in the data. Write "to be quoted" for any price.']),
+    '',
+    'Part 1: the readout script, as a table with the columns Minutes, Block, What I say (word for word)',
+    '- Minutes 0 to 5: recap what they told us, in their own words.',
+    '- Minutes 5 to 10: the headline. What the mapped work costs a year and what is recoverable. One number each.',
+    '- Minutes 10 to 25: walk the Opportunity Matrix. Start with the Quick Wins. Say plainly what is in Fix the process first and Not Now.',
+    '- Minutes 25 to 40: the 90-day roadmap and the three build options, each with the audit fee credit.',
+    '- Minutes 40 to 50: questions. The five questions they are most likely to ask, with a short honest answer for each.',
+    '- Minutes 50 to 60: the next step, with the 30-day fee credit deadline.',
+    'End on this closing question: "Which option would you like to start with?"',
+    '',
+    'Part 2: the build proposal for ' + opt + ', with these headings: Scope, What we build, Timeline, Investment ("to be quoted"), Audit fee credit and the date it expires (30 days after the readout), What we need from their team, Risks, Next steps.',
+    '',
+    'Under 1,000 words apart from the tables.'
+  ].join('\n');
+}
+function promptA2(st) {
+  return USING + 'take the website, the owner\'s LinkedIn, my niche and what my agency builds from client.website, client.ownerLinkedin, client.industry and client.agencyBuilds. Then run this prompt with web search on.\n\n' + promptA(st);
+}
+function promptB2(st, res) {
+  var c = st.client, price = res.fee !== null ? money(res.fee, res.cur) : '';
+  var recap = recapFilled(c, price);
+  return USING + 'treat callNotes as the transcript of the 30-minute discovery call. The recap template has fill-ins in round brackets. Replace each one with the real answer from the call notes and the client data, and leave no round-bracket fill-in in what you write.\n\n' +
+    fillKit(KIT.promptB, { notes: '(the callNotes field in the client data above)', recap: recap });
+}
+
+var STEPS = [
+  { n: 1, phase: 'Free call', title: 'Research the business', use: 'Run it about 15 minutes before the free call, with web search on.', build: promptA2,
+    check: 'Every claim has a source on the page. Every "unknown" stays unknown. The one observation is something you can see yourself.', how: 'Pre-call research from the website and LinkedIn. Facts only, "unknown" otherwise, so you never say a wrong detail to the owner.' },
+  { n: 2, phase: 'Free call', title: 'Turn the call into scorecard rows and a recap', use: 'Right after the call. It reads the call notes from the client data.', build: promptB2,
+    check: 'Every number against your notes. The (est) labels stay. The tier it picks matches the staff count. The recap uses the owner\'s own problems.', how: 'Call notes become the top three problems, scorecard rows, a fit decision and the recap email.' },
+  { n: 3, phase: 'Day 1', title: 'Kickoff agenda and interview list', use: 'The day the audit starts. Gives you the 60-minute kickoff and who to interview.', build: promptKickoff,
+    check: 'Everyone who does a workflow in your table is on the interview list. The count fits the tier. Nothing in the agenda promises a result.', how: 'Builds the 60-minute kickoff agenda and the list of who to interview, and why.' },
+  { n: 4, phase: 'Days 2 to 4, before each interview', title: 'Interview questions for one person', use: 'Run it once per person, the day before. Fill in the role and what they do.', build: promptQuestions, inputs: 'questions',
+    check: 'Plain words. Each question gets a number or a story. The opening line sounds like you. No question hints at the answer.', how: 'Writes an opening line, 8 to 12 plain questions around the four numbers, and a follow-up for every vague answer.' },
+  { n: 5, phase: 'Days 2 to 4, after each interview', title: 'Interview transcript to workflow rows', use: 'Within an hour of each interview. Paste the transcript.', build: promptInterview, inputs: 'interview',
+    check: 'Every number and every quote is in the transcript. Guesses carry (est). Anything not said is "unknown".', how: 'Pulls workflow rows with the four numbers and exact quotes from one transcript. Nothing outside the transcript.' },
+  { n: 6, phase: 'Days 5 to 9', title: 'AI readiness score', use: 'Once every interview is in the table above.', build: promptReadiness,
+    check: 'Each score has evidence from the rows. Unknowns are listed as questions. The level matches the bands: 75% and up, 50 to 74%, under 50%.', how: 'Scores six pillars of four checks, 0 to 3 each, and names the level.' },
+  { n: 7, phase: 'Days 5 to 9', title: 'Rank the opportunities and plan 90 days', use: 'After you have scored Impact, Effort and AI Fit in the table.', build: promptRank,
+    check: 'Reasons match what the owner said. Box and override follow the rules. No new numbers. Prices read "to be quoted" unless they are yours.', how: 'Scores with reasons, the matrix with the AI Fit override, a 90-day roadmap and three build options.' },
+  { n: 8, phase: 'Days 5 to 9', title: 'Write the audit report', use: 'When the numbers are final. This is the report the client keeps.', build: promptReport,
+    check: 'Every figure against the table above. No new number has appeared. Fix the process first items sit under Not now. Tables are there.', how: 'Writes the full eleven-section client-ready report, using only the numbers given.' },
+  { n: 9, phase: 'Day 10', title: 'Readout script and build proposal', use: 'Before the 60-minute readout. Pick the option you expect them to choose.', build: promptReadout, inputs: 'readout',
+    check: 'The minutes add up to 60. Every number is from the table. The script ends on "Which option would you like to start with?". The fee credit date is 30 days out.', how: 'Scripts the 60 minutes in the deck\'s order and drafts the proposal for the chosen option.' }
+];
+function allPrompts(st, res) {
+  var o = {};
+  STEPS.forEach(function (s) { o[s.n] = s.build(st, res); });
+  return o;
+}
+function stepForCopy(st, res, n, p) {
+  p = p || allPrompts(st, res);
+  return st.own ? 'Client data (JSON):\n' + dataJson(st, res) + '\n\n' + p[n] : p[n];
+}
+function allStepsText(st, res) {
+  var p = allPrompts(st, res);
+  var out = [dataText(st, res), '', 'Send the prompts below one at a time, in the same chat. Wait for each answer before you send the next prompt.', ''];
+  STEPS.forEach(function (s) { out.push('--- PROMPT ' + s.n + ' ---', p[s.n], ''); });
+  return out.join('\n');
+}
+
+/* ---------- markdown export ---------- */
+function buildMd(st, res) {
+  var p = allPrompts(st, res);
+  var c = st.client;
+  var out = [
+    '# ' + (c.name.trim() || 'Client') + ' - AI audit prompts',
+    '',
+    '_Freedom with AI - Diamond exclusive toolkit - Audit Prompt Builder_',
+    '',
+    '> AI drafts. You check. Read every number against your notes and edit before anything goes to the client.',
+    '',
+    '## Client data (send this first)',
+    INTRO,
+    '',
+    '```json',
+    dataJson(st, res),
+    '```',
+    '',
+    '## Client',
+    clientLines(st),
+    '',
+    '## Workflow table',
+    tableMd(res),
+    '',
+    '## The maths',
+    '- Hours a week = times a week x minutes each x people / 60',
+    '- Yearly cost = hours a week x loaded cost an hour x 48 working weeks',
+    '- 70% back = yearly cost x 0.7',
+    '- Lost leads a year = missed leads a month x close rate x average sale x 12',
+    '- Priority = Impact x 2 + AI Fit + (6 minus Effort), max 20',
+    '- Rate from salary = monthly salary x 1.3 / (days a month x hours a day). Salary plus 30% for PF, gratuity, bonus and desk costs, spread over the hours they work.',
+    '- Owner time: FWAI estimate of ' + money(defRate(res.cur, 'Owner'), res.cur) + ' an hour.',
+    res.cur === 'INR' ? '- ₹250/hr is used when you don\'t know their salary. It is a metro office staffer on about ₹40,000 a month plus 30% (Glassdoor 2026).' : '',
+    '',
+    totalsLines(res),
+    '',
+    '## Opportunity Matrix',
+    matrixLines(res),
+    '',
+    '## Suggested roadmap order',
+    roadmapLines(res),
+    '',
+    '## Audit tier and fee',
+    tierLines(res),
+    ''
+  ];
+  STEPS.forEach(function (s) {
+    out.push('## Prompt ' + s.n + ': ' + s.title, '_' + s.phase + '. ' + s.use + '_', '', '```text', p[s.n], '```', '', '**Check in the answer:** ' + s.check, '');
+  });
+  out.push('## Read and edit before you send', 'AI drafts. You check. Read every number against your notes and edit before anything goes to the client.', '');
+  return out.join('\n');
+}
+
+/* ---------- render ---------- */
+function $(s, el) { return (el || document).querySelector(s); }
+function getPath(o, path) { return path.split('.').reduce(function (a, k) { return a == null ? a : a[k]; }, o); }
+function setPath(o, path, v) { var ks = path.split('.'); var last = ks.pop(); var t = ks.reduce(function (a, k) { if (a[k] == null) a[k] = {}; return a[k]; }, o); t[last] = v; }
+function st_rowById(id) { return rowOf(state, id); }
+
+function scoreSel(id, f, val, label, hint) {
+  var opts = '<option value="">-</option>';
+  for (var i = 1; i <= 5; i++) opts += '<option value="' + i + '"' + (String(val) === String(i) ? ' selected' : '') + '>' + i + '</option>';
+  return '<div class="f"><label for="' + id + '-' + f + '">' + label + '<small class="scl">' + hint + '</small></label><select id="' + id + '-' + f + '" data-row="' + id + '" data-f="' + f + '">' + opts + '</select></div>';
+}
+function fmtMoney(n, cur) { return money(Math.round(n * 100) / 100, cur); }
+function rateNote(r) {
+  var cur = state.client.currency, cs = cur === 'INR' ? '\u20b9' : '$', loc = cur === 'INR' ? 'en-IN' : 'en-US';
+  if (r.who === 'Owner') {
+    if (isBlank(r.rate) || String(r.rate) === String(defRate(cur, 'Owner'))) return fmtMoney(defRate(cur, 'Owner'), cur) + '/hr is our estimate for owner time (est)';
+    return fmtMoney(Number(r.rate), cur) + '/hr as you entered it';
+  }
+  var d = rateFromPay(r.sal);
+  if (d !== null && !isBlank(r.rate) && Math.abs(Number(r.rate) - d) < 0.5)
+    return fmtMoney(d, cur) + '/hr from ' + (presetName === 'pune' ? 'Meena\'s pay of ' : 'monthly pay of ') + cs + Number(r.sal).toLocaleString(loc);
+  if (isBlank(r.rate)) return fmtMoney(defRate(cur, 'Staff'), cur) + '/hr used: pay left blank (est)';
+  return fmtMoney(Number(r.rate), cur) + '/hr as you entered it';
+}
+function setRateNote(r) { var hn = document.getElementById('hint-' + r.id); if (hn) hn.textContent = rateNote(r); }
+function ratePh(r) { var c = state.client.currency; return money(defRate(c, r.who), c); }
+function numIn(id, f, val, label, ph, extra) {
+  return '<div class="f"><label for="' + id + '-' + f + '">' + label + '</label><input type="number" inputmode="decimal" min="0" step="any" id="' + id + '-' + f + '" data-row="' + id + '" data-f="' + f + '" value="' + esc(val == null ? '' : val) + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') + '></div>';
+}
+function renderRows() {
+  $('#rows').innerHTML = state.rows.map(function (r, i) {
+    return '<div class="wf" data-wf="' + r.id + '">' +
+      '<div class="wf-head"><span class="tag">Workflow ' + (i + 1) + '</span><button type="button" class="rm" data-rm="' + r.id + '" aria-label="Remove workflow ' + (i + 1) + '">Remove</button></div>' +
+      '<div class="grid g2 stack-s"><div class="f"><label for="' + r.id + '-name">Workflow name</label><input type="text" id="' + r.id + '-name" data-row="' + r.id + '" data-f="name" value="' + esc(r.name) + '"></div>' +
+      '<div class="f"><label for="' + r.id + '-who">Who does it</label><select id="' + r.id + '-who" data-row="' + r.id + '" data-f="who"><option value="Staff"' + (r.who !== 'Owner' ? ' selected' : '') + '>Staff</option><option value="Owner"' + (r.who === 'Owner' ? ' selected' : '') + '>Owner</option></select></div></div>' +
+      '<div class="grid ' + (r.who === 'Owner' ? 'g3' : 'g4') + '">' +
+        numIn(r.id, 'often', r.often, 'Times a week') +
+        numIn(r.id, 'minutes', r.minutes, 'Minutes each') +
+        numIn(r.id, 'people', r.people, 'People') +
+        (r.who === 'Owner' ? '' : numIn(r.id, 'sal', r.sal, 'Monthly pay', state.client.currency === 'INR' ? '18000' : '4000')) +
+      '</div>' +
+      '<div class="rate-row">' + numIn(r.id, 'rate', r.rate, 'Cost an hour', ratePh(r)) + '<p class="rate-note" id="hint-' + r.id + '">' + esc(rateNote(r)) + '</p></div>' +
+      '<div class="grid g3 sc3">' + scoreSel(r.id, 'impact', r.impact, 'Impact', '1 small \u00b7 5 huge') + scoreSel(r.id, 'effort', r.effort, 'Effort', '1 easy \u00b7 5 hard') + scoreSel(r.id, 'fit', r.fit, 'AI Fit', 'How well AI can do this job. 1 AI can\'t help \u00b7 5 AI is perfect') + '</div>' +
+      '<div class="f"><label for="' + r.id + '-note">In the owner\'s words</label><input type="text" id="' + r.id + '-note" data-row="' + r.id + '" data-f="note" value="' + esc(r.note) + '"></div>' +
+    '</div>';
+  }).join('');
+}
+function syncStaticFields() {
+  document.querySelectorAll('[data-k]').forEach(function (el) {
+    var v = getPath(state, el.getAttribute('data-k'));
+    el.value = v == null ? '' : v;
+  });
+  var own = $('#own'); if (own) own.checked = !!state.own;
+}
+function renderTop() {
+  var big = presetName === 'blank';
+  $('#homework').innerHTML = '<div class="card hw ' + (big ? 'hw--big' : 'hw--s') + '"><span class="tag">Homework</span><p class="hw-t"><b>Your homework:</b> audit a real business near you this week. A clinic, a shop, a relative\'s office. Use Prompt 4 for your interview questions, run the call, fill this in, then run the prompts. No owner yet? Put in test values and see how it works.</p></div>';
+  $('#iv').innerHTML = presetName === 'pune' ? '<details class="iv" id="ivd"><summary>Read the owner interview</summary><div class="inner"><p class="small">Dr. Kulkarni, in her own words. Every number in the form below comes from here. TPA means the company that handles insurance claims.</p><blockquote>' + esc(PUNE_TRANSCRIPT) + '</blockquote></div></details>' : '';
+}
+function renderResult() {
+  var res = compute(state), cur = res.cur;
+  var h = '';
+  var nReady = res.rows.filter(function (r) { return r.ready; }).length;
+  if (res.hasData) h += '<div class="hero-num"><span class="tag">Mapped work costs a year</span><div class="big">' + money(res.yearly, cur) + '</div><div class="cap">' + hrsFmt(res.hrs) + ' hours a week across ' + nReady + ' workflow' + (nReady === 1 ? '' : 's') + ' (a workflow is a job that repeats, like answering calls). Estimates are marked est: our guess, because the owner did not give that number.</div></div>';
+  else h += '<div class="hero-num"><span class="tag">Mapped work costs a year</span><div class="big big-wait">Fill in the numbers from the interview to see what this costs.</div></div>';
+  h += '<div class="stats">' +
+    '<div class="stat"><span class="tag">70% back</span><div class="v">' + (res.hasData ? money(res.back, cur) : '-') + '</div><div class="c">Yearly savings</div></div>' +
+    '<div class="stat"><span class="tag">Lost leads</span><div class="v">' + (res.hasLeads ? money(res.leadsYear, cur) : 'Not entered') + '</div><div class="c">' + (res.hasLeads ? 'A year, on top' : 'Optional') + '</div></div>' +
+  '</div>';
+  if (state.client.currency === 'INR') h += '<p class="small foot">₹250/hr is used when you don\'t know their salary. It is a metro office staffer on about ₹40,000 a month plus 30% (Glassdoor 2026).</p>';
+  h += '<div class="card tier"><span class="tag">Suggested tier (audit size and price)</span>';
+  if (res.tier) {
+    h += '<div><span class="name">' + res.tier + '</span> &nbsp; <span class="fee">' + money(res.fee, cur) + '</span></div>';
+    h += '<p class="small">' + (state.tier === 'auto' ? 'Picked from ' + esc(state.client.staff) + ' staff.' : 'You chose this tier. The staff count suggests ' + (res.suggested || 'nothing yet') + '.') + ' If they build within 30 days of the readout (the meeting where you present your findings), the full ' + money(res.fee, cur) + ' comes off the build.</p>';
+    h += '<p class="small">3x check: the yearly savings should be at least 3 times the audit fee, so the audit pays for itself.</p>';
+    if (!res.hasData) h += '<div class="verdict wait">3x check: Waiting for numbers</div>';
+    else h += '<div class="verdict ' + (res.pass ? 'yes' : 'no') + '">3x check: ' + (res.pass ? 'Yes. ' + money(res.back, cur) + ' a year back is at least 3 times the ' + money(res.fee, cur) + ' fee (' + money(res.fee * 3, cur) + ').' : 'No. ' + money(res.back, cur) + ' a year back is under 3 times the ' + money(res.fee, cur) + ' fee (' + money(res.fee * 3, cur) + '). Do not offer the guarantee on this one.') + '</div>';
+    if (res.hasData && res.rows.some(function (r) { return r.ready && r.est; })) h += '<p class="small warn">This includes estimates (rows marked est). Confirm them with the owner before you offer the guarantee.</p>';
+    if (res.hasLeads && res.hasData) h += '<p class="small">With lost leads added, the total is ' + money(res.back + res.leadsYear, cur) + ' a year. The check above uses savings only, the safer reading.</p>';
+  } else {
+    h += '<div class="empty">Enter the staff count to see the tier and the 3x check. Focused is up to 15 staff, Standard 16 to 50, Deep over 50.</div>';
+  }
+  h += '<div class="chips">' + ['Focused', 'Standard', 'Deep'].map(function (t) {
+    return '<div class="chip' + (res.tier === t ? ' on' : '') + '"><b>' + t + '</b>' + money(FEES[cur][t], cur) + (res.hasData ? '<br>3x: ' + (res.passes[t] ? 'yes' : 'no') : '') + '</div>';
+  }).join('') + '</div></div>';
+  h += '<div class="card"><span class="tag">Ranked by priority</span><h2>Do these in this order</h2><p class="sub">Priority = Impact × 2 + AI Fit + (6 - Effort). Max 20.</p>';
+  if (!res.rows.length) h += '<div class="empty">Add a workflow to see it ranked.</div>';
+  else {
+    h += '<ol class="rank">' + res.ranked.map(function (r, i) {
+      return '<li class="rk"><span class="rk-n">' + (i + 1) + '</span>' +
+        '<div class="rk-t">' + esc(r.name) + badgeFor(r) + (r.est ? '<span class="badge b-est">est</span>' : '') + '</div>' +
+        '<div class="rk-p">' + (r.priority === null ? '<small>no score</small>' : r.priority + '<small>/20</small>') + '</div>' +
+        (r.ready ? '<div class="rk-d"><span><b>' + hrsFmt(r.hrs) + '</b> hrs/wk</span><span><b>' + money(r.yearly, cur) + '</b> a year</span><span><b>' + money(r.back, cur) + '</b> back</span></div>' : '<div class="rk-d"><span><b>needs numbers</b></span></div>') +
+      '</li>';
+    }).join('') + '</ol>';
+    var m = res.matrix;
+    h += '<div class="matrix" style="margin-top:14px">' +
+      '<span class="badge b-win" style="margin:0">Quick Wins ' + m.win.length + '</span>' +
+      '<span class="badge b-swing" style="margin:0">Big Swings ' + m.swing.length + '</span>' +
+      '<span class="badge b-fill" style="margin:0">Fill-Ins ' + m.fill.length + '</span>' +
+      '<span class="badge b-not" style="margin:0">Not Now ' + m.not.length + '</span>' +
+      '<span class="badge b-fix" style="margin:0">Fix first ' + m.fix.length + '</span></div>' +
+      '<p class="legend">Quick Win = big payoff, easy. Big Swing = big payoff, hard. Fill-In = small payoff, easy. Not Now = small payoff, hard. Fix first = the process is broken, so fix it before using AI.</p>';
+  }
+  h += '</div>';
+  $('#result').innerHTML = h;
+  return res;
+}
+function inputsFor(kind) {
+  if (kind === 'questions') return '<div class="step-in">' +
+    '<div class="f"><label for="x-role">Role to interview</label><input type="text" id="x-role" data-k="extra.role" placeholder="e.g. Front desk coordinator"></div>' +
+    '<div class="f"><label for="x-does">What they do</label><input type="text" id="x-does" data-k="extra.roleDoes" placeholder="e.g. books appointments and checks insurance"></div></div>';
+  if (kind === 'interview') return '<div class="step-in">' +
+    '<div class="f"><label for="x-int">Interview transcript <small>(paste it here after your interview)</small></label><textarea id="x-int" data-k="extra.interview" placeholder="Paste the interview transcript"></textarea></div></div>';
+  if (kind === 'readout') return '<div class="step-in">' +
+    '<div class="f"><label for="x-opt">Option to write the proposal for</label><select id="x-opt" data-k="extra.option"><option value="A">Option A: Quick Wins</option><option value="B">Option B: Quick Wins + Big Swing</option><option value="C">Option C: Full roadmap</option></select></div></div>';
+  return '';
+}
+function pbox(key, label) {
+  return '<div class="pb"><div class="pb-head"><span class="tag">' + label + '</span>' +
+    '<button type="button" class="btn btn--gold copybig" data-copy="' + key + '">' + (key === 'data' ? 'Copy client data' : 'Copy Prompt ' + key) + '</button></div>' +
+    '<pre id="pre-' + key + '" class="clamp" tabindex="0"></pre>' +
+    '<button type="button" class="more" data-more="' + key + '" aria-expanded="false">Show full prompt</button></div>';
+}
+var expanded = {};
+function promptTexts(res) {
+  var p = allPrompts(state, res), o = { data: dataText(state, res) };
+  STEPS.forEach(function (s) { o[s.n] = stepForCopy(state, res, s.n, p); });
+  return o;
+}
+function fitClamps() {
+  document.querySelectorAll('#prompts pre').forEach(function (pre) {
+    var k = pre.id.slice(4), ex = !!expanded[k];
+    pre.classList.toggle('clamp', !ex);
+    var over = false;
+    if (!ex) { pre.classList.remove('cut'); over = pre.scrollHeight > pre.clientHeight + 4; }
+    pre.classList.toggle('cut', over);
+    var btn = pre.parentNode.querySelector('.more');
+    btn.hidden = !ex && !over;
+    btn.textContent = ex ? 'Hide full prompt' : 'Show full prompt';
+    btn.setAttribute('aria-expanded', String(ex));
+  });
+}
+function renderPrompts(res) {
+  var box = $('#prompts');
+  if (!box.children.length) {
+    box.innerHTML = '<li class="step data"><div class="num zero" aria-hidden="true">0</div><div class="step-body"><div class="step-top"><span class="tag">Start here</span><h3>Client data</h3><p>Copy this first and send it. The AI should reply "Ready". It holds every number the prompts use.</p></div>' + pbox('data', 'Client data and first line') + '</div></li>' +
+      STEPS.map(function (s) {
+        return '<li class="step"><div class="num" aria-hidden="true">' + s.n + '</div><div class="step-body">' +
+          '<div class="step-top"><span class="tag">' + esc(s.phase) + '</span><h3>Prompt ' + s.n + ': ' + esc(s.title) + '</h3><p>' + esc(s.use) + '</p></div>' +
+          inputsFor(s.inputs) + pbox(String(s.n), 'Prompt ' + s.n) +
+          '<p class="chk"><b>Check in the answer:</b> ' + esc(s.check) + '</p></div></li>';
+      }).join('');
+    $('#howlist').innerHTML = STEPS.map(function (s) { return '<li><b>' + s.n + '</b><span>' + esc(s.how) + '</span></li>'; }).join('');
+    syncStaticFields();
+  }
+  var t = promptTexts(res);
+  Object.keys(t).forEach(function (k) { $('#pre-' + k).textContent = t[k]; });
+  fitClamps();
+  return t;
+}
+
+/* ---------- step tracker and "Do this next" ---------- */
+var HINTS = ['Type the business name in the first box.', 'Fill in what the owner told you. Blank boxes are fine.', '', 'Download the PDF for your client.'];
+var PART_IDS = ['sec-pick', 'sec-fill', 'sec-copy', 'sec-pdf'];
+function isExampleUntouched() { return presetName !== 'blank' && !(state.progress && state.progress.edited); }
+function copiedN() { var cs = (state.progress && state.progress.copiedSet) || {}, n = 0; for (var i = 1; i <= 9; i++) if (cs[i]) n++; return n; }
+function copyDone() { return !!(state.progress && (state.progress.copied || copiedN() === 9)); }
+function nextPromptN() { var cs = (state.progress && state.progress.copiedSet) || {}; for (var i = 1; i <= 9; i++) if (!cs[i]) return i; return 9; }
+function copyHint() {
+  if (!(state.progress && state.progress.dataCopied)) return 'Copy Client data, paste it into ChatGPT or Claude';
+  return 'Copy Prompt ' + nextPromptN() + ', paste it in the same chat';
+}
+function trackerState(res) {
+  var ex = isExampleUntouched();
+  return [
+    tx(state.client.name) ? (ex ? 'filled' : 'done') : 'todo',
+    res.hasData ? (ex ? 'filled' : 'done') : 'todo',
+    copyDone() ? 'done' : 'todo',
+    state.progress && state.progress.pdf ? 'done' : 'todo'
+  ];
+}
+function paintTracker(res) {
+  var s = trackerState(res), cur = s.indexOf('todo'), n = copiedN();
+  document.querySelectorAll('.trk-item').forEach(function (b, i) {
+    b.classList.toggle('done', s[i] === 'done'); b.classList.toggle('filled', s[i] === 'filled'); b.classList.toggle('cur', i === cur);
+    b.querySelector('.n').textContent = s[i] === 'done' ? '✓' : String(i + 1);
+  });
+  var pg = $('#trk-pg'); if (pg) pg.textContent = n > 0 ? n + ' of 9 copied' : '';
+  var el = $('#next');
+  if (el) {
+    el.setAttribute('data-next', String(cur === -1 ? 4 : cur + 1));
+    el.className = 'next on';
+    var txt = cur === 2 ? copyHint() : HINTS[cur];
+    var jump = cur === 2 ? '<button type="button" class="nx-go" data-go="sec-copy">Jump to prompts</button>' : cur === 3 ? '<button type="button" class="nx-go" data-go="sec-pdf">Jump to PDF</button>' : '';
+    el.innerHTML = cur === -1 ? '<b>All done</b><span class="nx-t">Read every answer once more, then send the PDF.</span>' : '<b>Do this next</b><span class="nx-t">' + esc(txt) + '</span>' + jump;
+  }
+}
+function setTrk() { var t = $('.tracker'); if (t) document.documentElement.style.setProperty('--trk', t.offsetHeight + 'px'); }
+
+/* ---------- print document (white, branded, shown only when printing) ---------- */
+function renderPrint(res) {
+  var c = state.client, cur = res.cur;
+  var date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  var nm = esc(tx(c.name) || 'Client');
+  var meta = [tx(c.city), tx(c.industry)].filter(Boolean).map(esc).join(' · ');
+  var h = '<div class="pd-cover"><div><p class="pd-k">Freedom with AI · AI Opportunity Audit</p><h1 class="pd-name">' + nm + '</h1><p class="pd-meta">' + (meta ? meta + ' · ' : '') + date + '</p></div>' +
+    '<div><p class="pd-title">AI Opportunity Audit: summary</p>' +
+    (res.hasData ? '<div class="pd-big"><span>Mapped work costs a year</span><b>' + money(res.yearly, cur) + '</b></div><div class="pd-big pd-big2"><span>Savings a year at 70%</span><b>' + money(res.back, cur) + '</b></div>' + (res.hasLeads ? '<p class="pd-lead">Plus ' + money(res.leadsYear, cur) + ' a year in lost leads.</p>' : '') : '<p class="pd-lead">The numbers have not been entered yet.</p>') + '</div>' +
+    '<p class="pd-foot">Figures marked est are estimates from the owner\'s call. Savings = yearly cost x 70%.</p></div>';
+  h += '<div class="pd-body">';
+  h += '<section class="pd-sec"><h2>What the work costs today</h2><table class="pd-tbl"><thead><tr><th>Workflow</th><th>Who</th><th class="r">Per week</th><th class="r">Min each</th><th class="r">People</th><th class="r">Cost/hr</th><th class="r">Hrs/wk</th><th class="r">Cost a year</th><th class="r">70% back</th></tr></thead><tbody>' +
+    res.rows.map(function (r) {
+      var raw = rowOf(state, r.id), est = r.est ? '<span class="pd-est">est</span>' : '';
+      if (!r.ready) return '<tr><td>' + esc(r.name) + est + '</td><td colspan="8">needs numbers</td></tr>';
+      return '<tr><td>' + esc(r.name) + est + '</td><td>' + (raw.who === 'Owner' ? 'Owner' : 'Staff') + '</td><td class="r">' + esc(raw.often) + '</td><td class="r">' + esc(raw.minutes) + '</td><td class="r">' + esc(raw.people) + '</td><td class="r">' + money(r.rateUsed, cur) + '</td><td class="r">' + hrsFmt(r.hrs) + '</td><td class="r">' + money(r.yearly, cur) + '</td><td class="r">' + money(r.back, cur) + '</td></tr>';
+    }).join('') + '</tbody>' + (res.hasData ? '<tfoot><tr><td colspan="6">Total</td><td class="r">' + hrsFmt(res.hrs) + '</td><td class="r">' + money(res.yearly, cur) + '</td><td class="r">' + money(res.back, cur) + '</td></tr></tfoot>' : '') + '</table>' +
+    (res.hasLeads ? '<p style="margin-top:3mm"><b>Lost leads:</b> ' + esc(state.leads.missed) + ' missed a month x ' + esc(state.leads.close) + '% close rate x ' + money(num(state.leads.avg), cur) + ' average sale x 12 = <b>' + money(res.leadsYear, cur) + ' a year</b>.</p>' : '') + '</section>';
+  var m = res.matrix;
+  function box(cls, title, sub, arr) {
+    return '<div class="pd-box ' + cls + '"><h3>' + title + '</h3><small>' + sub + '</small>' + (arr.length ? '<ul>' + arr.map(function (r) { return '<li>' + esc(r.name) + (r.ready ? ' (' + money(r.back, cur) + ' back)' : '') + '</li>'; }).join('') + '</ul>' : '<small>None</small>') + '</div>';
+  }
+  h += '<section class="pd-sec"><h2>The opportunity matrix</h2><div class="pd-grid">' +
+    box('win', 'Quick Wins', 'Impact 3+, Effort 1 to 3', m.win) + box('swing', 'Big Swings', 'Impact 3+, Effort 4 to 5', m.swing) +
+    box('', 'Fill-Ins', 'Impact 1 to 2, Effort 1 to 3', m.fill) + box('', 'Not Now', 'Impact 1 to 2, Effort 4 to 5', m.not) +
+    (m.fix.length ? box('fix', 'Fix the process first', 'AI Fit 1 or 2, whatever the box', m.fix) : '') + '</div></section>';
+  h += '<section class="pd-sec"><h2>What to do first</h2><table class="pd-tbl"><thead><tr><th>#</th><th>Workflow</th><th class="r">Impact</th><th class="r">Effort</th><th class="r">AI Fit</th><th class="r">Priority</th><th>Box</th><th class="r">Savings a year</th></tr></thead><tbody>' +
+    res.ranked.map(function (r, i) { var rw = rowOf(state, r.id); return '<tr><td>' + (i + 1) + '</td><td>' + esc(r.name) + '</td><td class="r">' + (esc(rw.impact) || '-') + '</td><td class="r">' + (esc(rw.effort) || '-') + '</td><td class="r">' + (esc(rw.fit) || '-') + '</td><td class="r">' + (r.priority === null ? '-' : r.priority + '/20') + '</td><td>' + esc(boxText(r)) + '</td><td class="r">' + (r.ready ? money(r.back, cur) : 'needs numbers') + '</td></tr>'; }).join('') + '</tbody></table>' +
+    '<p class="pd-note" style="margin-top:2mm">Priority = Impact x 2 + AI Fit + (6 - Effort). Maximum 20.</p></section>';
+  var ratio = res.fee ? res.back / res.fee : 0, rr = Math.round(ratio * 10) / 10;
+  h += '<section class="pd-sec"><h2>Audit size and fee</h2>' + (res.tier ? '<p><b>' + res.tier + '</b>, fee ' + money(res.fee, cur) + '. If they build within 30 days of the readout, the full fee comes off the build.</p>' +
+    (res.hasData && ratio >= 1 ? '<p>Yearly savings vs audit fee: about ' + (rr % 1 === 0 ? String(rr) : rr.toFixed(1)) + ' times the fee.</p>' : '') : '<p>Enter the staff count to see the audit size.</p>') + '</section>';
+  h += '<section class="pd-sec pd-legend"><h2>How to read this</h2><p><span class="pd-est">est</span> marks a number we estimated, because it was not given on the call. Impact, Effort and AI Fit are scored 1 to 5: Impact 5 is a huge payoff, Effort 5 is hard to build, AI Fit 5 means AI is a perfect match for the job.</p></section>';
+  h += '</div>';
+  $('#printdoc').innerHTML = h;
+}
+function printTitle() { return (tx(state.client.name) || 'Client') + ' AI Audit Summary'; }
+var TITLE0 = document.title;
+window.addEventListener('beforeprint', function () { renderPrint(compute(state)); document.title = printTitle(); });
+window.addEventListener('afterprint', function () { document.title = TITLE0; });
+
+function update() {
+  var res = renderResult();
+  renderPrompts(res);
+  paintTracker(res);
+  renderPrint(res);
+  return res;
+}
+
+/* ---------- autosave (this browser only) ---------- */
+var KEY = 'fwai-audit-mine', saveTimer = null, lastSaved = null, saveFailed = false;
+function readSaved() {
+  try {
+    var s = localStorage.getItem(KEY); if (!s) return null;
+    var o = JSON.parse(s);
+    if (o && o.v === 2 && o.state && o.state.client && o.state.rows) return o;
+  } catch (e) {}
+  return null;
+}
+function paintSave() {
+  var t = saveFailed ? 'Could not save here (browser storage is blocked)' : (lastSaved ? 'Saved in this browser at ' + new Date(lastSaved).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Saves in this browser as you type');
+  var a = $('#save-text'), b = $('#trk-save');
+  if (a) a.textContent = t;
+  if (b) b.textContent = lastSaved && !saveFailed ? 'Saved' : '';
+}
+function writeSaved() {
+  clearTimeout(saveTimer); saveTimer = null;
+  try { localStorage.setItem(KEY, JSON.stringify({ v: 2, base: presetName, savedAt: Date.now(), state: state })); lastSaved = Date.now(); saveFailed = false; }
+  catch (e) { saveFailed = true; }
+  paintSave();
+}
+function touch() { clearTimeout(saveTimer); saveTimer = setTimeout(writeSaved, 300); }
+function clearSaved() {
+  clearTimeout(saveTimer); saveTimer = null; lastSaved = null;
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  paintSave();
+}
+function normalize(s) {
+  s.extra = Object.assign(EXTRAS.blank(), s.extra || {});
+  s.sal = Object.assign(SAL0(), s.sal || {});
+  var legacy = !(s.progress && s.progress.copiedSet);
+  s.progress = Object.assign({ copied: false, pdf: false, edited: false, dataCopied: false, copiedSet: {} }, s.progress || {});
+  if (legacy) { s.progress.copied = false; s.progress.copiedSet = {}; s.progress.dataCopied = false; }
+  s.own = !!s.own;
+  s.tier = s.tier || 'auto';
+  s.leads = Object.assign({ missed: '', close: '', avg: '' }, s.leads || {});
+  s.client = Object.assign({ me: '' }, s.client);
+  s.rows.forEach(function (r) { if (r.sal == null) r.sal = ''; if (!r.who) r.who = 'Staff'; var n = Number(String(r.id).slice(1)); if (n > uid) uid = n; });
+  return s;
+}
+
+/* ---------- actions ---------- */
+function copyText(text, btn) {
+  function ok() {
+    if (!btn) return;
+    var old = btn.getAttribute('data-label') || btn.textContent; btn.setAttribute('data-label', old);
+    btn.textContent = 'Copied'; btn.classList.add('done');
+    setTimeout(function () { btn.textContent = old; btn.classList.remove('done'); }, 1400);
+  }
+  function fallback() {
+    var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); ok(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, fallback); else fallback();
+}
+function markDone(which) { state.progress[which] = true; touch(); paintTracker(compute(state)); }
+function markCopied(key) {
+  var p = state.progress;
+  if (!p.copiedSet) p.copiedSet = {};
+  if (key === 'data') p.dataCopied = true;
+  else if (key === 'all') { p.dataCopied = true; p.copied = true; for (var i = 1; i <= 9; i++) p.copiedSet[i] = true; }
+  else p.copiedSet[key] = true;
+  touch(); paintTracker(compute(state));
+}
+function slug(s) { return (s || 'client').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'client'; }
+
+function show() {
+  document.querySelectorAll('#presets button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-preset') === presetName)); });
+  renderTop(); renderRows(); syncStaticFields(); paintCur(); update(); paintSave(); setTrk();
+}
+function loadPreset(name) {
+  presetName = name;
+  state = PRESETS[name](); state.extra = EXTRAS[name](); state.progress = { copied: false, pdf: false, edited: false, dataCopied: false, copiedSet: {} }; state.own = false;
+  state.rows.forEach(function (r) { if (!r.who) r.who = 'Staff'; });
+  expanded = {};
+  show();
+}
+var pendingOk = null;
+function askConfirm(msg, okLabel, onOk) {
+  var d = $('#dlg');
+  if (!d || typeof d.showModal !== 'function') { if (window.confirm(msg)) onOk(); return; }
+  $('#dlg-msg').textContent = msg; $('#dlg-ok').textContent = okLabel;
+  d.returnValue = ''; pendingOk = onOk;
+  d.showModal();
+}
+$('#dlg form').addEventListener('submit', function (e) { var f = pendingOk; pendingOk = null; if (e.submitter && e.submitter.value === 'ok' && f) f(); });
+$('#dlg').addEventListener('close', function () { pendingOk = null; });
+function requestPreset(name) {
+  if (state && state.progress && state.progress.edited) askConfirm('You have changes in the client you are working on. Replace it? The changes will be lost.', 'Replace', function () { clearSaved(); loadPreset(name); });
+  else { clearSaved(); loadPreset(name); }
+}
+
+function paintCur() {
+  document.querySelectorAll('[data-cur]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-cur') === state.client.currency)); });
+}
+function markEdited() { if (state.progress) state.progress.edited = true; }
+function fmtRate(d) { return String(Math.round(d)); }
+document.addEventListener('input', function (e) {
+  var t = e.target;
+  if (!t || !t.closest || t.id === 'own') return;
+  if (!(t.closest('#form') || t.closest('#prompts'))) return;
+  if (t.type === 'number' && t.value !== '') {
+    var nv = Number(t.value);
+    if (nv < 0) t.value = '0';
+    else if (t.getAttribute('data-k') === 'leads.close' && nv > 100) t.value = '100';
+  }
+  var rid = t.getAttribute('data-row');
+  markEdited();
+  if (rid) {
+    var r = st_rowById(rid), f = t.getAttribute('data-f');
+    r[f] = t.value;
+    if (f === 'sal') {
+      var d = rateFromPay(r.sal);
+      r.rate = d === null ? '' : fmtRate(d);
+      var ri = document.getElementById(rid + '-rate'); if (ri) ri.value = r.rate;
+    } else if (f === 'rate') {
+      r.sal = '';
+      var si = document.getElementById(rid + '-sal'); if (si) si.value = '';
+    }
+    setRateNote(r);
+  } else if (t.hasAttribute('data-k')) {
+    setPath(state, t.getAttribute('data-k'), t.value);
+  }
+  touch(); update();
+});
+document.addEventListener('keydown', function (e) {
+  var t = e.target;
+  if (t && t.type === 'number' && (e.key === '-' || e.key === '+' || e.key === 'e' || e.key === 'E')) e.preventDefault();
+});
+document.addEventListener('change', function (e) {
+  var t = e.target;
+  if (!t || !t.tagName) return;
+  if (t.id === 'own') { state.own = t.checked; touch(); update(); return; }
+  if (t.tagName !== 'SELECT') return;
+  var rid = t.getAttribute('data-row');
+  markEdited();
+  if (rid && t.getAttribute('data-f') === 'who') { applyWho(st_rowById(rid), t.value, state.client.currency); renderRows(); }
+  else if (rid) st_rowById(rid)[t.getAttribute('data-f')] = t.value;
+  else if (t.hasAttribute('data-k')) setPath(state, t.getAttribute('data-k'), t.value);
+  touch(); update();
+});
+document.addEventListener('click', function (e) {
+  var t = e.target.closest ? e.target.closest('button') : null;
+  if (!t) return;
+  if (t.hasAttribute('data-cur')) { state.client.currency = t.getAttribute('data-cur'); paintCur(); renderRows(); touch(); update(); return; }
+  if (t.hasAttribute('data-preset')) { var pn = t.getAttribute('data-preset'); requestPreset(pn); if (pn === 'blank' && presetName === 'blank') { var fs = document.getElementById('sec-fill'); if (fs) fs.scrollIntoView({ behavior: 'auto', block: 'start' }); var nm = document.getElementById('c-name'); if (nm) { try { nm.focus({ preventScroll: true }); } catch (e) { nm.focus(); } } } return; }
+  if (t.hasAttribute('data-theme-btn')) { setTheme(t.getAttribute('data-theme-btn')); return; }
+  if (t.hasAttribute('data-go')) {
+    var tgt = document.getElementById(t.getAttribute('data-go'));
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (tgt) tgt.scrollIntoView({ behavior: 'auto', block: 'start' });
+    return;
+  }
+  if (t.hasAttribute('data-rm')) {
+    var id = t.getAttribute('data-rm');
+    state.rows = state.rows.filter(function (r) { return r.id !== id; });
+    markEdited(); renderRows(); touch(); update(); return;
+  }
+  if (t.id === 'add-row') {
+    state.rows.push(row({ name: '', who: 'Staff', often: '', minutes: '', people: '', sal: '', rate: '', impact: '', effort: '', fit: '', note: '' }));
+    markEdited(); renderRows(); touch(); update();
+    var last = $('#rows .wf:last-child input'); if (last) last.focus();
+    return;
+  }
+  if (t.hasAttribute('data-more')) { var k = t.getAttribute('data-more'); expanded[k] = !expanded[k]; fitClamps(); return; }
+  if (t.hasAttribute('data-copy')) { copyText(promptTexts(compute(state))[t.getAttribute('data-copy')], t); markCopied(t.getAttribute('data-copy')); return; }
+  if (t.id === 'copy-all') { copyText(allStepsText(state, compute(state)), t); markCopied('all'); return; }
+  if (t.id === 'dl-md') {
+    var md = buildMd(state, compute(state));
+    var blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = slug(state.client.name) + '-audit-prompts.md';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    return;
+  }
+  if (t.id === 'pdf') { if (copyDone()) markDone('pdf'); renderPrint(compute(state)); document.title = printTitle(); window.print(); setTimeout(function () { document.title = TITLE0; }, 500); return; }
+  if (t.id === 'start-fresh') { if (!(state.progress && state.progress.edited)) { clearSaved(); loadPreset('pune'); return; } askConfirm('Start fresh? This clears your saved client and goes back to the Pune example.', 'Start fresh', function () { clearSaved(); loadPreset('pune'); }); return; }
+});
+window.addEventListener('resize', function () { fitClamps(); setTrk(); });
+if (window.ResizeObserver) { try { new ResizeObserver(setTrk).observe($('.tracker')); } catch (e) {} }
+
+/* ---------- theme ---------- */
+function effectiveTheme() {
+  var t = document.documentElement.getAttribute('data-theme');
+  if (t === 'light' || t === 'dark') return t;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function paintToggle() {
+  var cur = effectiveTheme();
+  document.querySelectorAll('[data-theme-btn]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-theme-btn') === cur)); });
+}
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  try { localStorage.setItem('fwai-audit-theme', t); } catch (e) {}
+  paintToggle();
+}
+if (window.matchMedia) {
+  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintToggle); } catch (e) {}
+}
+
+/* ---------- self test (also callable from the console: AUDIT.selfTest()) ---------- */
+var DASH1 = String.fromCharCode(8212), DASH2 = String.fromCharCode(8211);
+function fresh(name) { var s = PRESETS[name](); s.extra = EXTRAS[name](); s.progress = { copied: false, pdf: false, edited: false, dataCopied: false, copiedSet: {} }; s.own = false; return s; }
+function stepsNoTemplate(st, res) {
+  var p = allPrompts(st, res);
+  return STEPS.map(function (s) { var t = typeof p === 'object' && p[s.n] !== undefined ? p[s.n] : s.build(st, res); return t; });
+}
+function selfTest() {
+  var out = [];
+  function ok(name, cond, got) { out.push({ name: name, pass: !!cond, got: got }); }
+  var sf = fresh('sf'), pu = fresh('pune');
+  var r0 = calcRow(sf.rows[0], 'USD');
+  ok('SF scheduling = 12 hrs', r0.hrs === 12, r0.hrs);
+  ok('SF scheduling = $20,160 a year', Math.round(r0.yearly) === 20160, r0.yearly);
+  ok('SF scheduling = $14,112 back', Math.round(r0.back) === 14112, r0.back);
+  ok('format $20,160', money(r0.yearly, 'USD') === '$20,160');
+  ok('priority(4,2,5) = 17', priority(4, 2, 5) === 17);
+  ok('box(4,2) = win', boxOf(4, 2) === 'win'); ok('box(3,4) = swing', boxOf(3, 4) === 'swing');
+  ok('box(2,3) = fill', boxOf(2, 3) === 'fill'); ok('box(1,5) = not', boxOf(1, 5) === 'not');
+  ok('box(3,3) = win (edge)', boxOf(3, 3) === 'win'); ok('box(2,4) = not (edge)', boxOf(2, 4) === 'not');
+  ok('SF row 0 scored 17 Quick Win', r0.priority === 17 && r0.box === 'win' && !r0.fix);
+  ok('SF treatment follow-ups override (Fit 2)', calcRow(sf.rows[3], 'USD').fix === true);
+  var ir = { often: '60', minutes: '12', people: '1', rate: '250' };
+  ok('India 12 x 250 x 48 = 1,44,000', money(calcRow(ir, 'INR').yearly, 'INR') === '₹1,44,000');
+  ok('India 70% = 1,00,800', money(calcRow(ir, 'INR').back, 'INR') === '₹1,00,800');
+  ok('salary helper 18000, 26 days, 9 hrs = 100', Math.round(rateFromSalary(18000, 26, 9) * 100) / 100 === 100);
+  ok('default rates: INR 250/1000, USD 35/100', defRate('INR', 'Staff') === 250 && defRate('INR', 'Owner') === 1000 && defRate('USD', 'Staff') === 35 && defRate('USD', 'Owner') === 100);
+  ok('fees USD 1500/3000/5000 and INR 30000/60000/100000', FEES.USD.Focused === 1500 && FEES.USD.Standard === 3000 && FEES.USD.Deep === 5000 && FEES.INR.Focused === 30000 && FEES.INR.Standard === 60000 && FEES.INR.Deep === 100000);
+  ok('owner row costs 7.5 hrs x 1000 x 48 = 3,60,000', money(calcRow({ often: '10', minutes: '45', people: '1', rate: '', who: 'Owner' }, 'INR').yearly, 'INR') === '₹3,60,000');
+  var bs = calcRow({ often: '10', minutes: '10', people: '1', rate: '', who: 'Staff' }, 'INR');
+  ok('blank rate Staff INR: Rs 20,000 and est', Math.round(bs.yearly) === 20000 && bs.est);
+  ok('partly filled row is not ready', calcRow({ often: '10', minutes: '', people: '1', rate: '', who: 'Staff' }, 'INR').ready === false);
+  ok('tier 5/15 Focused, 16/50 Standard, 51 Deep', tierFor('5') === 'Focused' && tierFor('15') === 'Focused' && tierFor('16') === 'Standard' && tierFor('50') === 'Standard' && tierFor('51') === 'Deep');
+  var keep = state, keepName = presetName;
+  state = sf; var res = compute(sf);
+  ok('SF 14 staff suggests Focused', res.suggested === 'Focused' && res.tier === 'Focused', res.tier);
+  ok('SF passes 3x', res.pass === true && res.passes.Focused === true);
+  ok('SF top ranked is scheduling', res.ranked[0].name === 'Front desk scheduling');
+  ok('SF lost leads = 71,280', Math.round(res.leadsYear) === 71280);
+  ok('SF has one override row', res.matrix.fix.length === 1);
+  var sd = dataObj(sf, res), sj = JSON.parse(dataJson(sf, res));
+  ok('SF JSON parses and has client, workflows, totals, tier', sj.client.business === 'Bright Smile Dental' && sj.workflows.length === 4 && !!sj.totals && !!sj.tier, Object.keys(sj));
+  ok('SF JSON totals match the maths', Math.round(sj.totals.costPerYear) === Math.round(res.yearly) && Math.round(sj.totals.savingsPerYearAt70) === Math.round(res.back), sj.totals);
+  ok('SF JSON tier Focused fee 1500 and 3x pass', sj.tier.name === 'Focused' && sj.tier.auditFee === 1500 && sj.tier.savingsPassThreeXCheck === true, sj.tier);
+  ok('SF JSON has call notes, interview and est flags', !!sj.callNotes && !!sj.interview.transcript && sj.workflows.every(function (w) { return 'est' in w; }));
+  var st = stepsNoTemplate(sf, res);
+  ok('SF: no [ placeholder in any step', st.every(function (t) { return t.indexOf('[') < 0; }), st.map(function (t, i) { var m = t.match(/\[[^\]]*\]?/); return m ? (i + 1) + ':' + m[0] : null; }).filter(Boolean));
+  var pp = allPrompts(sf, res);
+  ok('SF: Prompt data text starts with INTRO and carries JSON', dataText(sf, res).indexOf(INTRO) === 0 && dataText(sf, res).indexOf('"totals"') > -1);
+  ok('every step starts "Using the client data I gave you above"', STEPS.every(function (s) { return String(pp[s.n] !== undefined ? pp[s.n] : s.build(sf, res)).indexOf(USING) === 0; }), STEPS.map(function (s) { return String(pp[s.n] !== undefined ? pp[s.n] : s.build(sf, res)).slice(0, 30); }));
+  ok('own switch is off by default', sf.own === false && fresh('pune').own === false);
+  var a1 = stepForCopy(sf, res, 3, pp); sf.own = true; var a2 = stepForCopy(sf, res, 3, allPrompts(sf, res)); sf.own = false;
+  ok('own switch on prepends the JSON', a2.length > a1.length && a2.indexOf('"totals"') > -1 && a1.indexOf('"totals"') < 0);
+  var all = allStepsText(sf, res);
+  ok('Copy all: intro, JSON, 9 separators, send-one-at-a-time', all.indexOf(INTRO) === 0 && (all.match(/--- PROMPT \d ---/g) || []).length === 9 && /one at a time/.test(all), (all.match(/--- PROMPT \d ---/g) || []).length);
+  ok('step 8 asks for a client-ready report ending with the PDF/Word line', /If you can create files, give me this as a PDF or Word document\.\s*$/.test(String(pp[8] !== undefined ? pp[8] : STEPS[7].build(sf, res))), STEPS[7].title);
+  var md = buildMd(sf, res);
+  ok('export has nine step headings and the client data', (md.match(/^## Prompt \d+: /gm) || []).length === 9 && md.indexOf('## Client data') > -1);
+  ok('no dashes in prompts, JSON or export', [md, all].every(function (t) { return t.indexOf(DASH1) < 0 && t.indexOf(DASH2) < 0; }));
+  ok('no ₹0/$0 in SF export', !BAD0.test(md));
+  state = pu; var pr = compute(pu);
+  ok('Pune prefilled: only the owner row (FWAI estimate rate) is est', pr.rows.map(function (r) { return r.est; }).join() === 'false,false,true', pr.rows.map(function (r) { return r.est; }));
+  ok('Pune is INR, 9 staff, Focused, fee 30,000', pr.cur === 'INR' && pr.tier === 'Focused' && pr.fee === 30000);
+  ok('Pune totals ₹4,41,600 and ₹3,09,120', money(pr.yearly, 'INR') === '₹4,41,600' && money(pr.back, 'INR') === '₹3,09,120', money(pr.yearly, 'INR') + ' ' + money(pr.back, 'INR'));
+  ok('Pune 3x passes', pr.pass === true);
+  ok('Pune lost leads ₹3,60,000', money(pr.leadsYear, 'INR') === '₹3,60,000', money(pr.leadsYear, 'INR'));
+  var pj = JSON.parse(dataJson(pu, pr));
+  ok('Pune JSON parses with totals and 3 workflows', pj.workflows.length === 3 && Math.round(pj.totals.costPerYear) === 441600 && Math.round(pj.totals.savingsPerYearAt70) === 309120, pj.totals);
+  var pst = stepsNoTemplate(pu, pr);
+  ok('Pune: no [ placeholder in any step', pst.every(function (t) { return t.indexOf('[') < 0; }), pst.map(function (t, i) { var m = t.match(/\[[^\]]*\]?/); return m ? (i + 1) + ':' + m[0] : null; }).filter(Boolean));
+  ok('Pune: no ₹0 in data, steps or export', !BAD0.test(dataText(pu, pr)) && !BAD0.test(buildMd(pu, pr)) && pst.every(function (t) { return !BAD0.test(t); }));
+  ok('Pune: no undefined or NaN anywhere in the prompts', !/undefined|NaN/.test(dataText(pu, pr) + pst.join('')));
+  ok('INR export has the Glassdoor footnote', buildMd(pu, pr).indexOf('(Glassdoor 2026)') > -1);
+  state = keep; presetName = keepName;
+  return out;
+}
+
+var BAD0 = /[₹$]0(?![\d,.])/;
+function panelTest() {
+  var out = [];
+  function ok(name, cond, got) { out.push({ name: name, pass: !!cond, got: got }); }
+  var keepName = presetName, keepState = state;
+  loadPreset('pune');
+  var t = $('#result').textContent, rs = compute(state);
+  ok('Pune on load: ₹4,41,600 and ₹3,09,120', t.indexOf('₹4,41,600') > -1 && t.indexOf('₹3,09,120') > -1, t.slice(0, 160));
+  ok('Pune on load: lost leads ₹3,60,000', t.indexOf('₹3,60,000') > -1);
+  ok('Pune on load: 3x passes (green), tier Focused', !!$('#result .verdict.yes') && rs.tier === 'Focused' && !$('#result .verdict.no'));
+  ok('Pune on load: no ₹0', !BAD0.test(t), (t.match(BAD0) || [])[0]);
+  ok('Pune: "Read the owner interview" is a closed collapsible', !!$('#ivd') && !$('#ivd').open && $('#ivd summary').textContent === 'Read the owner interview');
+  var pg = document.body.textContent;
+  ok('Pune: none of Check your answer / Load the answer / Clear and try again / not available', !/Check your answer|Load the answer|Clear and try again|not available/i.test(document.getElementById('iv').textContent + t + $('#rows').textContent));
+  ok('Pune: homework card is the small one, not the big one', !!document.querySelector('#homework .hw--s') && !document.querySelector('#homework .hw--big'));
+  ok('Pune: no hw-load / hw-clear buttons exist', !$('#hw-load') && !$('#hw-clear'));
+  ok('Pune: rows show ₹100 / ₹100 / ₹1000', Array.prototype.map.call(document.querySelectorAll('[data-f="rate"]'), function (e) { return e.value; }).join(',') === '100,100,1000');
+  ok('Pune: tracker steps 1 and 2 say Filled for you (not green ticks) on load', document.querySelectorAll('.trk-item.filled').length === 2 && document.querySelectorAll('.trk-item.done').length === 0 && /Filled for you/.test($('.trk-item.filled').textContent), document.querySelectorAll('.trk-item.filled').length);
+  ok('Pune: Do this next points at part 3', !!$('.next.on[data-next="3"]') && /Do this next/.test($('.next.on').textContent));
+  var pbad = Array.prototype.map.call(document.querySelectorAll('#prompts pre'), function (p) { return p.textContent; });
+  ok('Pune: prompt boxes have no undefined / NaN / ₹0', pbad.every(function (x) { return !/undefined|NaN/.test(x) && !BAD0.test(x); }));
+  loadPreset('sf');
+  t = $('#result').textContent;
+  ok('SF panel: $20,160 and $14,112 appear', true);
+  ok('SF panel has no $0', !BAD0.test(t), (t.match(BAD0) || [])[0]);
+  ok('SF: Focused, 3x verdict green', compute(state).tier === 'Focused' && !!$('#result .verdict.yes'));
+  ok('SF: homework card present (small)', !!document.querySelector('#homework .hw--s'));
+  ok('SF: no Read the owner interview? (SF has none)', !$('#ivd'));
+  loadPreset('blank');
+  t = $('#result').textContent;
+  ok('Blank: empty state, no $0, neutral 3x', /Fill in the numbers/.test(t) && !BAD0.test(t) && !$('#result .verdict.no') && !$('#result .verdict.yes'));
+  ok('Blank: big homework card, tracker nothing ticked', !!document.querySelector('#homework .hw--big') && document.querySelectorAll('.trk-item.done').length === 0);
+  ok('Blank: Do this next says part 1', !!$('.next.on[data-next="1"]'));
+  ok('Blank: prompts render with no NaN/undefined/$0', Array.prototype.every.call(document.querySelectorAll('#prompts pre'), function (p) { return !/undefined|NaN/.test(p.textContent) && !BAD0.test(p.textContent); }));
+  /* fix round: inputs, theme, next-step hint */
+  loadPreset('pune');
+  function typeInto(sel, v) { var el = $(sel); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); return el; }
+  var cl = typeInto('#l-close', '250');
+  ok('Close rate above 100 is capped to 100', cl.value === '100' && state.leads.close === '100', cl.value);
+  typeInto('#l-miss', '-7');
+  ok('Negative in a number field clamps to 0', $('#l-miss').value === '0' && state.leads.missed === '0', $('#l-miss').value);
+  typeInto('#l-miss', 'abc');
+  ok('Letters in a number field give a blank, not a figure', $('#l-miss').value === '' && !/NaN/.test($('#result').textContent));
+  var rid = state.rows[0].id;
+  typeInto('#' + rid + '-rate', '-50');
+  ok('Row rate -50 clamps to 0 and falls back to the default, marked est', $('#' + rid + '-rate').value === '0' && calcRow(state.rows[0], 'INR').rateUsed === 250 && calcRow(state.rows[0], 'INR').est === true);
+  typeInto('#' + rid + '-rate', '0');
+  var cr = calcRow(state.rows[0], 'INR');
+  ok('Typed 0 rate falls back to the default rate and is est', cr.rateDefault === true && cr.rateUsed === 250 && cr.est === true);
+  var bad = ['often', 'minutes', 'people'].map(function (f) { var r = JSON.parse(JSON.stringify(state.rows[1])); r[f] = '0'; var c = calcRow(r, 'INR'); r[f] = '-4'; var d = calcRow(r, 'INR'); return !c.ready && !d.ready && c.hrs === 0 && d.hrs >= 0 && c.yearly === 0 && d.yearly === 0; });
+  ok('A 0 or negative times/minutes/people makes the row "needs numbers" with no negative hours', bad.every(Boolean), bad);
+  typeInto('#' + state.rows[1].id + '-minutes', '0');
+  var rt = $('#result').textContent + $('#rows').textContent + dataText(state, compute(state)) + buildMd(state, compute(state));
+  ok('Row with 0 minutes shows "needs numbers" and no ₹0, $0 or negative hours anywhere', /needs numbers/.test($('#result').textContent) && !BAD0.test(rt) && !/-\d+(\.\d+)? hrs/.test(rt));
+  var empty = { id: 'x', name: 'Empty', who: 'Staff', often: '', minutes: '', people: '', rate: '' };
+  ok('A truly empty row is not ready and has zero cost, no money figure', !calcRow(empty, 'USD').ready && calcRow(empty, 'USD').yearly === 0 && calcRow(empty, 'USD').est === true);
+  ok('Close rate of 250 in the maths counts as 100%', compute({ client: { currency: 'USD', staff: '5' }, tier: 'auto', rows: [], leads: { missed: '2', close: '250', avg: '100' } }).leadsYear === 2400);
+  loadPreset('pune');
+  var hints = Array.prototype.map.call(document.querySelectorAll('.rate-note'), function (h) { return h.textContent; });
+  ok('Pune staff rows are labelled "₹100/hr from Meena\'s pay of ₹18,000"', hints.filter(function (h) { return h === '₹100/hr from Meena\'s pay of ₹18,000'; }).length === 2, hints);
+  ok('Pune: default note reads "₹250/hr is used when you don\'t know their salary."', $('#result').textContent.indexOf('₹250/hr is used when you don\'t know their salary.') > -1);
+  ok('Pune view does not frame Pune as homework', !/homework/i.test($('#iv').textContent + $('#form').textContent + $('#rows').textContent + $('#result').textContent));
+  var th0 = null;
+  try { th0 = localStorage.getItem('fwai-audit-theme'); localStorage.removeItem('fwai-audit-theme'); } catch (e) {}
+  document.documentElement.removeAttribute('data-theme');
+  paintToggle(); loadPreset('sf'); typeInto('[data-k="client.name"]', 'Theme Test');
+  var sysDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  ok('Theme: nothing is saved by loading, editing or painting; it follows the system', localStorage.getItem('fwai-audit-theme') === null && !document.documentElement.getAttribute('data-theme') && effectiveTheme() === (sysDark ? 'dark' : 'light'));
+  try { if (th0) { localStorage.setItem('fwai-audit-theme', th0); document.documentElement.setAttribute('data-theme', th0); } } catch (e) {}
+  loadPreset('blank');
+  ok('New client: "Do this next" says "Type the business name", never "Pick an example"', /Type the business name/.test($('.next.on').textContent) && !/Pick an example/.test($('.next.on').textContent), $('.next.on').textContent);
+  loadPreset('pune');
+  ok('Step 2 template has no raw [ in the whole prompt, and its fill-ins are labelled', $('#pre-2').textContent.indexOf('[') < 0 && /\(write their top problem and its yearly cost here\)/.test($('#pre-2').textContent));
+  /* fix round 2: tracker ticks, rupee start, replace warning, no layout jump */
+  loadPreset('pune');
+  var fillN = document.querySelectorAll('.trk-item.filled').length, doneN0 = document.querySelectorAll('.trk-item.done').length;
+  typeInto('[data-k="client.city"]', 'Pune City');
+  ok('Ticks: example shows Filled for you until the user acts, then green ticks', fillN === 2 && doneN0 === 0 && document.querySelectorAll('.trk-item.filled').length === 0 && document.querySelectorAll('.trk-item.done').length === 2);
+  loadPreset('blank');
+  typeInto('[data-k="client.name"]', 'Sharma Kirana');
+  ok('Ticks: new client has no Filled for you, and step 1 ticks green only after typing the name', document.querySelectorAll('.trk-item.filled').length === 0 && document.querySelectorAll('.trk-item.done').length === 1);
+  loadPreset('blank');
+  ok('Rupees: new client starts in India ₹ with a "Business in" switch', state.client.currency === 'INR' && $('[data-cur="INR"]').getAttribute('aria-pressed') === 'true' && /Business in/.test($('.curbar').textContent) && $('[data-cur="INR"]').textContent.indexOf('₹') > -1 && $('[data-cur="USD"]').textContent.indexOf('$') > -1);
+  var r0id = state.rows[0].id;
+  typeInto('#' + r0id + '-often', '10'); typeInto('#' + r0id + '-minutes', '6'); typeInto('#' + r0id + '-people', '1');
+  var n0 = $('#hint-' + r0id).textContent, c0 = calcRow(state.rows[0], 'INR');
+  ok('Rupees: blank pay uses ₹250/hr, marked est, and says so next to the number', c0.rateUsed === 250 && c0.est === true && /₹250\/hr used: pay left blank \(est\)/.test(n0), n0);
+  typeInto('#' + r0id + '-sal', '18000');
+  var c1 = calcRow(state.rows[0], 'INR');
+  ok('Salary helper: ₹18,000 a month gives ₹100/hr in the rate box (salary x 1.3 / (26 x 9))', $('#' + r0id + '-rate').value === '100' && c1.rateUsed === 100 && c1.est === false && Math.round(c1.yearly) === 4800 && /₹100\/hr from monthly pay of ₹18,000/.test($('#hint-' + r0id).textContent), $('#hint-' + r0id).textContent);
+  var wsel = $('#' + r0id + '-who'); wsel.value = 'Owner'; wsel.dispatchEvent(new Event('change', { bubbles: true }));
+  var c2 = calcRow(state.rows[0], 'INR');
+  ok('Owner work uses ₹1,000/hr, marked est, with the note beside it', c2.rateUsed === 1000 && c2.est === true && /₹1,000\/hr is our estimate for owner time \(est\)/.test($('#hint-' + r0id).textContent), $('#hint-' + r0id).textContent);
+  $('[data-cur="USD"]').click();
+  ok('Business in switch flips to USA $ and the result uses $', state.client.currency === 'USD' && /\$/.test($('#result').textContent) && $('[data-cur="USD"]').getAttribute('aria-pressed') === 'true');
+  loadPreset('pune');
+  $('#dlg').open && $('#dlg').close();
+  document.querySelector('[data-preset="blank"]').click();
+  ok('Replace warning: no dialog on the first + New client press', !$('#dlg').open && presetName === 'blank');
+  typeInto('[data-k="client.name"]', 'Edited Co');
+  document.querySelector('[data-preset="sf"]').click();
+  var dlgShown = $('#dlg').open && presetName === 'blank';
+  if ($('#dlg').open) $('#dlg').close();
+  ok('Replace warning: shows once the client has real edits, and the client is kept until confirmed', dlgShown && state.client.name === 'Edited Co');
+  loadPreset('blank');
+  window.scrollTo(0, 0);
+  var ids = ['#c-name', '#c-owner', '#c-city'], topOf = function (el) { return Math.round(el.getBoundingClientRect().top + window.scrollY); };
+  var base = ids.map(function (q) { return topOf($(q)); }), trkH = $('.tracker').offsetHeight, stable = true, focusOk = true, valOk = true, jumped = [];
+  ids.forEach(function (q, k) {
+    var el = $(q), typed = '';
+    el.focus();
+    'Sharma Store'.split('').forEach(function (ch) {
+      typed += ch; el.value = typed; el.dispatchEvent(new Event('input', { bubbles: true }));
+      if (document.activeElement !== el) focusOk = false;
+      if (el.value !== typed) valOk = false;
+      var now = ids.map(function (qq) { return topOf($(qq)); });
+      if (now.join() !== base.join() || $('.tracker').offsetHeight !== trkH) { stable = false; jumped.push(now.join() + ' vs ' + base.join()); }
+    });
+  });
+  ok('Typing in 3 fields in a row: focus stays, value is right each time', focusOk && valOk && ids.every(function (q) { return $(q).value === 'Sharma Store'; }));
+  ok('Typing in 3 fields: nothing above or beside them moves (field tops and tracker height unchanged)', stable, jumped.slice(0, 2));
+  var rr = state.rows[0].id, rfields = ['often', 'minutes', 'people'], rb = rfields.map(function (f) { return topOf($('#' + rr + '-' + f)); }), rs = true, rf = true;
+  rfields.forEach(function (f, k) { var el = $('#' + rr + '-' + f); el.focus(); el.value = String(k + 5); el.dispatchEvent(new Event('input', { bubbles: true })); if (document.activeElement !== el || el.value !== String(k + 5)) rf = false; if (rfields.map(function (g) { return topOf($('#' + rr + '-' + g)); }).join() !== rb.join()) rs = false; });
+  ok('Typing 3 workflow numbers in a row: focus and value right, rows do not shift', rf && rs);
+  ok('Scales have plain end labels', /1 small · 5 huge/.test($('#rows').textContent) && /1 easy · 5 hard/.test($('#rows').textContent) && /1 AI can't help · 5 AI is perfect/.test($('#rows').textContent));
+  ok('One-line purpose sits right under the title', /An AI audit: you study a small business/.test($('.lede').textContent) && $('h1').nextElementSibling === $('.lede'));
+  loadPreset('pune');
+  ok('Preset buttons are labelled exactly', Array.prototype.map.call(document.querySelectorAll('#presets button'), function (b) { return b.textContent.trim(); }).join('|') === 'Pune dental clinic (example)|San Francisco dental clinic (example)|+ New client', Array.prototype.map.call(document.querySelectorAll('#presets button'), function (b) { return b.textContent.trim(); }));
+  loadPreset('sf');
+  var pre1 = $('#pre-1');
+  ok('Prompt box: clamped (no inner scroll) and a Show full prompt button', pre1.classList.contains('clamp') && getComputedStyle(pre1).overflowY !== 'auto' && getComputedStyle(pre1).overflowY !== 'scroll' && !!document.querySelector('.more[data-more="1"]'), getComputedStyle(pre1).overflowY);
+  var d = $('#printdoc').textContent;
+  ok('Print doc has cover, title, workflow table, matrix, ranked, tier, legend', /AI Opportunity Audit: summary/.test(d) && /Bright Smile Dental/.test(d) && /What the work costs today/.test(d) && /opportunity matrix/.test(d) && /What to do first/.test(d) && /Audit size and fee/.test(d) && /How to read this/.test(d), d.length);
+  ok('Print title is "<Business> AI Audit Summary"', printTitle() === 'Bright Smile Dental AI Audit Summary', printTitle());
+
+  /* ---- fix round 3 ---- */
+  var op = window.print; window.print = function () {};
+  function pageText() { return document.querySelector('header').innerText + ' ' + document.querySelector('nav.tracker').innerText + ' ' + document.querySelector('main').innerText; }
+  loadPreset('pune');
+  ok('R3 1: example load says "Copy Client data, paste it into ChatGPT or Claude" and part 3 is open', /Copy Client data, paste it into ChatGPT or Claude/.test($('#next').textContent) && $('#next').getAttribute('data-next') === '3' && !document.querySelectorAll('.trk-item')[2].classList.contains('done'), $('#next').textContent);
+  document.querySelector('[data-copy="data"]').click();
+  ok('R3 1: after Client data the bar says Copy Prompt 1', /Copy Prompt 1/.test($('#next').textContent), $('#next').textContent);
+  ['1', '2', '3'].forEach(function (k) { document.querySelector('[data-copy="' + k + '"]').click(); });
+  var itm3 = document.querySelectorAll('.trk-item')[2];
+  ok('R3 1: three prompts copied shows "3 of 9 copied" and part 3 is NOT ticked', /3 of 9 copied/.test(itm3.textContent) && !itm3.classList.contains('done') && /Copy Prompt 4/.test($('#next').textContent), itm3.textContent);
+  document.querySelector('#pdf').click();
+  ok('R3 1: PDF click before part 3 is finished does not tick part 4', !document.querySelectorAll('.trk-item')[3].classList.contains('done'));
+  ['4', '5', '6', '7', '8', '9'].forEach(function (k) { document.querySelector('[data-copy="' + k + '"]').click(); });
+  ok('R3 1: all 9 copied individually ticks part 3', document.querySelectorAll('.trk-item')[2].classList.contains('done') && /9 of 9 copied/.test(document.querySelectorAll('.trk-item')[2].textContent));
+  loadPreset('pune');
+  document.querySelector('[data-copy="data"]').click();
+  ok('R3 1: Client data alone does not tick part 3', !document.querySelectorAll('.trk-item')[2].classList.contains('done'));
+  document.querySelector('#copy-all').click();
+  ok('R3 1: Copy all prompts ticks part 3 and the bar moves to the PDF', document.querySelectorAll('.trk-item')[2].classList.contains('done') && $('#next').getAttribute('data-next') === '4', $('#next').textContent);
+  document.querySelector('#pdf').click();
+  ok('R3 1: PDF ticks part 4 only after part 3', document.querySelectorAll('.trk-item')[3].classList.contains('done') && /All done/.test($('#next').textContent));
+  window.print = op;
+  loadPreset('pune');
+  var pt = pageText(), pr = promptTexts(compute(state)), prAll = Object.keys(pr).map(function (k) { return pr[k]; }).join('\n') + allStepsText(state, compute(state)) + buildMd(state, compute(state));
+  ok('R3 2: no "Step N" or "step N" anywhere on the page', !/\bsteps? \d/i.test(pt) && !/\b(each|every|nine|all|the) steps?\b/i.test(pt), (pt.match(/.{20}\bsteps? .{15}/gi) || []).slice(0, 4));
+  ok('R3 2: prompts, copy-all and export say Prompt, never STEP', !/--- STEP|## Step|\bStep \d/.test(prAll) && /--- PROMPT 9 ---/.test(prAll));
+  ok('R3 2: tracker reads Part 1 to 4 and boxes read Prompt 1 to 9', [1, 2, 3, 4].every(function (n) { return $('.tracker').textContent.indexOf('Part ' + n) > -1; }) && [1, 9].every(function (n) { return $('#prompts').textContent.indexOf('Prompt ' + n + ':') > -1; }) && /Copy all prompts/.test(document.body.innerText));
+  loadPreset('sf');
+  var d3 = $('#printdoc').textContent;
+  ok('R3 3: client PDF has no 3x box, guarantee, "do not offer" or tips', !/3x|guarantee|do not offer|tip\b|tips\b|nine steps|Step \d/i.test(d3) && !document.querySelector('#printdoc .pd-yes, #printdoc .pd-no, #printdoc .pd-wait'), (d3.match(/.{15}(3x|guarantee|tip).{15}/i) || [])[0]);
+  ok('R3 3: client PDF shows the neutral savings line when N >= 1', /Yearly savings vs audit fee: about [\d.]+ times the fee\./.test(d3), (d3.match(/Yearly savings.{40}/) || [])[0]);
+  ok('R3 3: the screen keeps the 3x check', !!$('#result .verdict') && /3x check/.test($('#result').textContent));
+  state.rows.forEach(function (r) { r.often = '1'; r.minutes = '1'; r.people = '1'; r.rate = '1'; r.sal = ''; });
+  update();
+  ok('R3 3: no savings line when savings are under the fee', !/Yearly savings vs audit fee/.test($('#printdoc').textContent) && !/3x|guarantee/i.test($('#printdoc').textContent), (compute(state).back));
+  loadPreset('pune'); clearSaved();
+  boot();
+  ok('R3 4: first visit loads Pune with the India switch on', presetName === 'pune' && document.querySelector('[data-cur="INR"]').getAttribute('aria-pressed') === 'true' && document.querySelector('[data-cur="USD"]').getAttribute('aria-pressed') === 'false' && state.client.currency === 'INR', presetName);
+  ok('R3 4: preset order is Pune, San Francisco, + New client', document.querySelector('#presets button').getAttribute('data-preset') === 'pune' && document.querySelectorAll('#presets button')[1].getAttribute('data-preset') === 'sf' && document.querySelectorAll('#presets button')[2].getAttribute('data-preset') === 'blank');
+  var dg = $('#dlg');
+  document.querySelector('[data-cur="USD"]').click(); document.querySelector('[data-cur="INR"]').click();
+  requestPreset('sf');
+  ok('R3 6: untouched example (even after a currency switch) gets no replace warning', !dg.open && presetName === 'sf' && !state.progress.edited, dg.open);
+  loadPreset('pune');
+  typeInto('[data-k="client.name"]', 'Real Edit Clinic');
+  requestPreset('sf');
+  ok('R3 6: a real edit does get the warning', dg.open && presetName === 'pune');
+  if (dg.open) { dg.close(); pendingOk = null; }
+  loadPreset('pune');
+  var inrAll = Object.keys(promptTexts(compute(state))).map(function (k) { return promptTexts(compute(state))[k]; }).join('\n') + allStepsText(state, compute(state)) + buildMd(state, compute(state));
+  ok('R3 8: no "dollar" or "$" in any India-mode prompt, copy-all or export', !/dollar|\$/i.test(inrAll), (inrAll.match(/.{25}(dollar|\$).{20}/ig) || []).slice(0, 5));
+  ok('R3 8: Prompt 2 email says "rupee value" in India mode', /a rupee value on each one/.test(promptTexts(compute(state))['2']));
+  loadPreset('sf');
+  ok('R3 8: Prompt 2 email says "dollar value" in US mode', /a dollar value on each one/.test(promptTexts(compute(state))['2']));
+  loadPreset(keepName);
+  return out;
+}
+function storeTest() {
+  var out = [];
+  function ok(name, cond, got) { out.push({ name: name, pass: !!cond, got: got }); }
+  loadPreset('sf');
+  var n = $('[data-k="client.name"]'); n.value = 'Autosave Test Co'; n.dispatchEvent(new Event('input', { bubbles: true }));
+  writeSaved();
+  var s = readSaved();
+  ok('autosave wrote the edited name', !!s && s.state.client.name === 'Autosave Test Co');
+  ok('indicator says Saved in this browser at', /Saved in this browser at/.test($('#save-text').textContent), $('#save-text').textContent);
+  ok('tracker shows the saved note', /Saved/.test($('#trk-save').textContent));
+  clearSaved();
+  ok('clearSaved removes it', readSaved() === null && /Saves in this browser as you type/.test($('#save-text').textContent));
+  loadPreset('sf');
+  return out;
+}
+function previewPrint(on) { var s = document.getElementById('print-css'); if (on) { renderPrint(compute(state)); document.title = printTitle(); } else document.title = TITLE0; s.media = on ? 'all' : 'print'; return document.title; }
+window.AUDIT = { boot: boot, panelTest: panelTest, selfTest: selfTest, storeTest: storeTest, calcRow: calcRow, compute: compute, buildMd: buildMd, priority: priority, boxOf: boxOf, getState: function () { return state; }, flushSave: writeSaved, previewPrint: previewPrint, printTitle: printTitle, dataObj: dataObj, dataText: dataText, allPrompts: allPrompts, allStepsText: allStepsText, stepForCopy: stepForCopy, promptTexts: function () { return promptTexts(compute(state)); }, INTRO: INTRO, loadPreset: loadPreset, readSaved: readSaved, clearSaved: clearSaved, requestPreset: requestPreset, fresh: fresh };
+
+/* ---------- boot ---------- */
+paintToggle();
+function boot() {
+  var s = readSaved();
+  if (s) { presetName = PRESETS[s.base] ? s.base : 'sf'; state = normalize(s.state); lastSaved = s.savedAt; expanded = {}; show(); }
+  else loadPreset('pune');
+}
+boot();
+})();
+</script>
+</body>
+</html>
