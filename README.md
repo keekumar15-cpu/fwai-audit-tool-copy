@@ -1,6 +1,6 @@
 # Audit Prompt Builder
 
-Freedom with AI · Diamond exclusive toolkit
+MSAII Audit toolkit
 
 Live: https://audittool.msaii.cloud
 
