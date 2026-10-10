@@ -2,7 +2,7 @@
 
 Freedom with AI · Diamond exclusive toolkit
 
-Live: https://fwai-audit-tool.vercel.app
+Live: https://audittool.msaii.cloud
 
 Fill in what a business owner told you on the call. The page works out the yearly cost of each workflow, ranks what to build first, and writes step-by-step prompts you paste into Claude or ChatGPT. Then download a client-ready PDF.
 
